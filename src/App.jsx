@@ -5,20 +5,32 @@ import { ToastProvider } from './context/ToastContext.jsx'
 import { ThemeProvider } from './context/ThemeContext.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import ChatPage from './pages/ChatPage.jsx'
+import AdminPage from './pages/AdminPage.jsx'
 import { seedIfNeeded } from './services/seed.js'
 
 seedIfNeeded()
 
-function ProtectedRoute({ children }) {
+function OperatorRoute({ children }) {
   const { operator, loading } = useAuth()
   if (loading) return null
-  return operator ? children : <Navigate to="/login" replace />
+  if (!operator) return <Navigate to="/login" replace />
+  if (operator.role === 'admin') return <Navigate to="/admin" replace />
+  return children
+}
+
+function AdminRoute({ children }) {
+  const { operator, loading } = useAuth()
+  if (loading) return null
+  if (!operator) return <Navigate to="/login" replace />
+  if (operator.role !== 'admin') return <Navigate to="/" replace />
+  return children
 }
 
 function PublicRoute({ children }) {
   const { operator, loading } = useAuth()
   if (loading) return null
-  return operator ? <Navigate to="/" replace /> : children
+  if (!operator) return children
+  return <Navigate to={operator.role === 'admin' ? '/admin' : '/'} replace />
 }
 
 function AppRoutes() {
@@ -35,11 +47,19 @@ function AppRoutes() {
       <Route
         path="/"
         element={
-          <ProtectedRoute>
+          <OperatorRoute>
             <ChatProvider>
               <ChatPage />
             </ChatProvider>
-          </ProtectedRoute>
+          </OperatorRoute>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <AdminRoute>
+            <AdminPage />
+          </AdminRoute>
         }
       />
       <Route path="*" element={<Navigate to="/" replace />} />

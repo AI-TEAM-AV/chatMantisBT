@@ -1,6 +1,5 @@
-import { createContext, useContext, useState, useEffect } from 'react'
-import { authStorage } from '../services/storage.js'
-import { OPERATORS } from '../services/seed.js'
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { authStorage, operatorListStorage } from '../services/storage.js'
 
 const AuthContext = createContext(null)
 
@@ -10,15 +9,22 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const saved = authStorage.getOperator()
-    if (saved) setOperator(saved)
+    if (saved) {
+      const stillExists = operatorListStorage.getAll().find(op => op.id === saved.id)
+      if (stillExists) {
+        setOperator({ ...saved, role: stillExists.role })
+      } else {
+        authStorage.clear()
+      }
+    }
     setLoading(false)
   }, [])
 
-  function login(username, password) {
-    const found = OPERATORS.find(
-      op => op.username === username.trim() && op.password === password
-    )
-    if (!found) return { ok: false, error: 'Usuario o contraseña incorrectos.' }
+  function login(email, password) {
+    const found = operatorListStorage.findByEmail(email)
+    if (!found || found.password !== password) {
+      return { ok: false, error: 'Email o contraseña incorrectos.' }
+    }
     const { password: _p, ...safe } = found
     authStorage.setOperator(safe)
     setOperator(safe)
@@ -30,8 +36,20 @@ export function AuthProvider({ children }) {
     setOperator(null)
   }
 
+  const refreshOperator = useCallback(() => {
+    const saved = authStorage.getOperator()
+    if (saved) {
+      const fresh = operatorListStorage.getAll().find(op => op.id === saved.id)
+      if (fresh) {
+        const { password: _p, ...safe } = fresh
+        authStorage.setOperator(safe)
+        setOperator(safe)
+      }
+    }
+  }, [])
+
   return (
-    <AuthContext.Provider value={{ operator, loading, login, logout }}>
+    <AuthContext.Provider value={{ operator, loading, login, logout, refreshOperator }}>
       {children}
     </AuthContext.Provider>
   )

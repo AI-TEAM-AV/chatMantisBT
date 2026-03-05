@@ -8,7 +8,7 @@ export default function LoginPage() {
   const { login } = useAuth()
   const { dark, toggle } = useTheme()
   const navigate = useNavigate()
-  const [form, setForm] = useState({ username: '', password: '' })
+  const [form, setForm] = useState({ email: '', password: '' })
   const [showPass, setShowPass] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -20,13 +20,13 @@ export default function LoginPage() {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (!form.username || !form.password) {
+    if (!form.email || !form.password) {
       setError('Completá todos los campos.')
       return
     }
     setLoading(true)
     await new Promise(r => setTimeout(r, 400))
-    const result = login(form.username, form.password)
+    const result = login(form.email, form.password)
     setLoading(false)
     if (result.ok) {
       navigate('/', { replace: true })
@@ -64,18 +64,18 @@ export default function LoginPage() {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5" htmlFor="username">
-                  Usuario
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5" htmlFor="email">
+                  Email
                 </label>
                 <input
-                  id="username"
-                  name="username"
-                  type="text"
-                  autoComplete="username"
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
                   autoFocus
-                  value={form.username}
+                  value={form.email}
                   onChange={handleChange}
-                  placeholder="tu usuario"
+                  placeholder="tu@email.com"
                   className={`w-full px-3.5 py-2.5 rounded-xl border text-sm transition-colors outline-none
                     text-slate-800 dark:text-slate-200
                     ${error
@@ -139,12 +139,13 @@ export default function LoginPage() {
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Cuentas de prueba:</p>
           <div className="space-y-1">
             <p className="text-xs text-slate-600 dark:text-slate-300">
-              <span className="font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">admin</span>
+              <span className="font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">admin@helpdesk.com</span>
               {' / '}
               <span className="font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">admin123</span>
+              <span className="ml-1.5 text-[10px] text-primary-500 font-medium">Admin</span>
             </p>
             <p className="text-xs text-slate-600 dark:text-slate-300">
-              <span className="font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">soporte</span>
+              <span className="font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">soporte@helpdesk.com</span>
               {' / '}
               <span className="font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">soporte123</span>
             </p>

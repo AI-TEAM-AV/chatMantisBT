@@ -1,9 +1,25 @@
 import { v4 as uuidv4 } from 'uuid'
-import { conversationStorage, messageStorage, isInitialized, markInitialized } from './storage.js'
+import { conversationStorage, messageStorage, operatorListStorage, isInitialized, markInitialized } from './storage.js'
 
 const OPERATORS = [
-  { id: 'op-1', name: 'Admin', username: 'admin', password: 'admin123', avatar: 'A' },
-  { id: 'op-2', name: 'Soporte', username: 'soporte', password: 'soporte123', avatar: 'S' },
+  {
+    id: 'op-1',
+    name: 'Admin',
+    email: 'admin@helpdesk.com',
+    password: 'admin123',
+    role: 'admin',
+    avatar: 'A',
+    createdAt: Date.now(),
+  },
+  {
+    id: 'op-2',
+    name: 'Soporte',
+    email: 'soporte@helpdesk.com',
+    password: 'soporte123',
+    role: 'operator',
+    avatar: 'SO',
+    createdAt: Date.now(),
+  },
 ]
 
 const now = Date.now()
@@ -58,10 +74,62 @@ const seedConversations = [
     subject: 'Problema con impresora de red',
     status: 'pending',
     priority: 'medium',
-    lastMessage: 'Gracias, quedamos a la espera.',
+    lastMessage: 'La impresora del piso 3 no aparece en la red.',
     lastMessageAt: hours(2),
-    unread: 0,
-    createdAt: hours(12),
+    unread: 3,
+    createdAt: hours(2),
+  },
+  {
+    id: 'conv-5',
+    userId: 'user-5',
+    userName: 'Lucía Herrera',
+    userEmail: 'lucia.herrera@empresa.com',
+    subject: 'No carga el módulo de facturación',
+    status: 'pending',
+    priority: 'high',
+    lastMessage: 'Necesito resolver esto hoy, tengo facturas que emitir.',
+    lastMessageAt: mins(12),
+    unread: 4,
+    createdAt: mins(12),
+  },
+  {
+    id: 'conv-6',
+    userId: 'user-6',
+    userName: 'Tomás Vega',
+    userEmail: 'tomas.vega@empresa.com',
+    subject: 'Pantalla en blanco al iniciar sesión',
+    status: 'pending',
+    priority: 'high',
+    lastMessage: 'Desde esta mañana no puedo entrar, la pantalla queda en blanco.',
+    lastMessageAt: mins(30),
+    unread: 2,
+    createdAt: mins(30),
+  },
+  {
+    id: 'conv-7',
+    userId: 'user-7',
+    userName: 'Valentina Cruz',
+    userEmail: 'valentina.cruz@empresa.com',
+    subject: 'Solicitud de permiso para instalar software',
+    status: 'pending',
+    priority: 'low',
+    lastMessage: 'Necesito instalar el Adobe Acrobat para trabajar con PDFs.',
+    lastMessageAt: hours(4),
+    unread: 1,
+    createdAt: hours(4),
+  },
+  {
+    id: 'conv-8',
+    userId: 'user-8',
+    userName: 'Martín Suárez',
+    userEmail: 'martin.suarez@empresa.com',
+    subject: 'Correo corporativo no envía adjuntos',
+    status: 'pending',
+    priority: 'medium',
+    lastMessage: 'Cuando intento enviar un archivo me da error de tamaño aunque sea pequeño.',
+    lastMessageAt: hours(1),
+    unread: 2,
+    createdAt: hours(1),
   },
 ]
 
@@ -86,13 +154,37 @@ const seedMessages = {
     { id: uuidv4(), conversationId: 'conv-3', sender: 'user', text: '¿Cuándo estará listo el acceso para el nuevo empleado?', createdAt: hours(1) },
   ],
   'conv-4': [
-    { id: uuidv4(), conversationId: 'conv-4', sender: 'user', text: 'La impresora del piso 3 dejó de aparecer en la red después de la actualización de ayer.', createdAt: hours(12) },
-    { id: uuidv4(), conversationId: 'conv-4', sender: 'operator', text: 'Entendido Pedro. Voy a coordinar con el equipo de infraestructura para revisarla esta tarde.', createdAt: hours(11) },
-    { id: uuidv4(), conversationId: 'conv-4', sender: 'user', text: 'Gracias, quedamos a la espera.', createdAt: hours(2) },
+    { id: uuidv4(), conversationId: 'conv-4', sender: 'user', text: 'Buen día. La impresora del piso 3 dejó de aparecer en la red después de la actualización de ayer.', createdAt: hours(2) },
+    { id: uuidv4(), conversationId: 'conv-4', sender: 'user', text: 'Ya intenté reiniciarla y sigue sin aparecer.', createdAt: hours(2) + mins(3) },
+    { id: uuidv4(), conversationId: 'conv-4', sender: 'user', text: 'La impresora del piso 3 no aparece en la red.', createdAt: hours(2) + mins(5) },
+  ],
+  'conv-5': [
+    { id: uuidv4(), conversationId: 'conv-5', sender: 'user', text: 'Hola, urgente! El módulo de facturación no carga, queda cargando infinito.', createdAt: mins(12) },
+    { id: uuidv4(), conversationId: 'conv-5', sender: 'user', text: 'Probé en otro navegador y pasa lo mismo.', createdAt: mins(11) },
+    { id: uuidv4(), conversationId: 'conv-5', sender: 'user', text: 'Necesito resolver esto hoy, tengo facturas que emitir.', createdAt: mins(12) },
+  ],
+  'conv-6': [
+    { id: uuidv4(), conversationId: 'conv-6', sender: 'user', text: 'Buenos días. Desde esta mañana cuando ingreso mis credenciales la pantalla queda completamente en blanco.', createdAt: mins(30) },
+    { id: uuidv4(), conversationId: 'conv-6', sender: 'user', text: 'Desde esta mañana no puedo entrar, la pantalla queda en blanco.', createdAt: mins(30) + mins(2) },
+  ],
+  'conv-7': [
+    { id: uuidv4(), conversationId: 'conv-7', sender: 'user', text: 'Hola. Quisiera solicitar permiso para instalar el Adobe Acrobat Reader en mi equipo.', createdAt: hours(4) },
+    { id: uuidv4(), conversationId: 'conv-7', sender: 'user', text: 'Lo necesito para poder abrir documentos PDF que me envían los clientes.', createdAt: hours(4) + mins(1) },
+    { id: uuidv4(), conversationId: 'conv-7', sender: 'user', text: 'Necesito instalar el Adobe Acrobat para trabajar con PDFs.', createdAt: hours(4) + mins(3) },
+  ],
+  'conv-8': [
+    { id: uuidv4(), conversationId: 'conv-8', sender: 'user', text: 'Buen día. Tengo un problema con mi correo corporativo, no me deja enviar archivos adjuntos.', createdAt: hours(1) },
+    { id: uuidv4(), conversationId: 'conv-8', sender: 'user', text: 'El error dice "archivo demasiado grande" pero el PDF que quiero enviar pesa solo 200KB.', createdAt: hours(1) + mins(2) },
+    { id: uuidv4(), conversationId: 'conv-8', sender: 'user', text: 'Cuando intento enviar un archivo me da error de tamaño aunque sea pequeño.', createdAt: hours(1) + mins(5) },
   ],
 }
 
 export function seedIfNeeded() {
+  // Always ensure operators list exists, even if the app was initialized before this feature
+  if (operatorListStorage.getAll().length === 0) {
+    operatorListStorage.save(OPERATORS)
+  }
+
   if (isInitialized()) return
   conversationStorage.save(seedConversations)
   Object.entries(seedMessages).forEach(([convId, messages]) => {

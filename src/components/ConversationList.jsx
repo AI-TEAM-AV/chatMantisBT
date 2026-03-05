@@ -35,7 +35,7 @@ export default function ConversationList({ statusFilter, setStatusFilter }) {
           </div>
 
           <div className="flex items-center gap-1.5">
-            <div className="w-7 h-7 rounded-full bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 flex items-center justify-center text-xs font-bold">
+            <div className="w-7 h-7 rounded-full bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 flex items-center justify-center text-xs font-bold shrink-0">
               {operator?.avatar || '?'}
             </div>
             <button

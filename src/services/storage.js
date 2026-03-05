@@ -2,7 +2,8 @@ const KEYS = {
   CONVERSATIONS: 'helpdesk_conversations',
   MESSAGES: 'helpdesk_messages',
   OPERATOR: 'helpdesk_operator',
-  INITIALIZED: 'helpdesk_initialized',
+  OPERATORS_LIST: 'helpdesk_operators_list',
+  INITIALIZED: 'helpdesk_initialized_v3',
 }
 
 export const storage = {
@@ -81,6 +82,33 @@ export const authStorage = {
 
   clear() {
     storage.remove(KEYS.OPERATOR)
+  },
+}
+
+export const operatorListStorage = {
+  getAll() {
+    return storage.get(KEYS.OPERATORS_LIST) || []
+  },
+
+  save(list) {
+    storage.set(KEYS.OPERATORS_LIST, list)
+  },
+
+  add(operator) {
+    const list = this.getAll()
+    const updated = [...list, operator]
+    this.save(updated)
+    return operator
+  },
+
+  remove(id) {
+    const updated = this.getAll().filter(op => op.id !== id)
+    this.save(updated)
+    return updated
+  },
+
+  findByEmail(email) {
+    return this.getAll().find(op => op.email.toLowerCase() === email.toLowerCase().trim()) || null
   },
 }
 
