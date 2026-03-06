@@ -48,13 +48,6 @@ function getPasswordStrength(password) {
   return { checks, score }
 }
 
-const STRENGTH_LEVELS = [
-  { label: 'Débil',   barColor: 'bg-red-400',     textColor: 'text-red-500'     },
-  { label: 'Regular', barColor: 'bg-orange-400',   textColor: 'text-orange-500'  },
-  { label: 'Buena',   barColor: 'bg-yellow-400',   textColor: 'text-yellow-500'  },
-  { label: 'Fuerte',  barColor: 'bg-emerald-400',  textColor: 'text-emerald-500' },
-]
-
 const PASSWORD_HINTS = [
   { key: 'length',  label: 'Mínimo 6 caracteres'         },
   { key: 'upper',   label: 'Al menos una mayúscula (A-Z)' },
@@ -65,16 +58,34 @@ const PASSWORD_HINTS = [
 function PasswordStrengthHint({ password }) {
   if (!password) return null
   const { checks, score } = getPasswordStrength(password)
-  const level = STRENGTH_LEVELS[Math.min(score - 1, 3)]
+
+  const barActive =
+    score <= 1 ? 'bg-red-400' :
+    score === 2 ? 'bg-orange-400' :
+    score === 3 ? 'bg-yellow-400' : 'bg-emerald-400'
+
+  const labelText  =
+    score <= 1 ? 'Débil' :
+    score === 2 ? 'Regular' :
+    score === 3 ? 'Buena' : 'Fuerte'
+
+  const labelColor =
+    score <= 1 ? 'text-red-500' :
+    score === 2 ? 'text-orange-500' :
+    score === 3 ? 'text-yellow-500' : 'text-emerald-500'
+
   return (
     <div className="mt-2 space-y-1.5">
       <div className="flex items-center gap-2">
         <div className="flex flex-1 gap-1">
           {[1, 2, 3, 4].map(i => (
-            <div key={i} className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= score ? level.barColor : 'bg-slate-200 dark:bg-slate-600'}`} />
+            <div
+              key={i}
+              className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= score ? barActive : 'bg-slate-200 dark:bg-slate-600'}`}
+            />
           ))}
         </div>
-        <span className={`text-[10px] font-semibold ${level.textColor}`}>{level.label}</span>
+        <span className={`text-[10px] font-semibold ${labelColor}`}>{labelText}</span>
       </div>
       <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
         {PASSWORD_HINTS.map(({ key, label }) => (
