@@ -6,6 +6,7 @@ import {
 import { useAuth } from '../context/AuthContext.jsx'
 import { useChat } from '../context/ChatContext.jsx'
 import { useToast } from '../context/ToastContext.jsx'
+import { chatsApi } from '../services/api.js'
 import MessageBubble from './MessageBubble.jsx'
 import ConfirmModal from './ConfirmModal.jsx'
 import {
@@ -73,24 +74,40 @@ export default function ChatWindow() {
     }
   }
 
-  function handleStart() {
-    updateStatus(activeConversation.id, 'open')
-    setTimeout(() => inputRef.current?.focus(), 50)
+  async function handleStart() {
+    try {
+      await chatsApi.startChat(activeConversation.id)
+      updateStatus(activeConversation.id, 'open')
+      setTimeout(() => inputRef.current?.focus(), 50)
+    } catch {
+      showToast('Error al iniciar la conversación. Intentá de nuevo.', 'error')
+    }
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!confirmDelete) {
       setConfirmDelete(true)
       return
     }
-    deleteConversation(activeConversation.id)
+    try {
+      await chatsApi.closeChat(activeConversation.id)
+      deleteConversation(activeConversation.id)
+    } catch {
+      showToast('Error al cerrar la conversación. Intentá de nuevo.', 'error')
+      setConfirmDelete(false)
+    }
   }
 
-  function handleResolveConfirm() {
+  async function handleResolveConfirm() {
     const name = activeConversation.userName
-    deleteConversation(activeConversation.id)
-    setShowResolveModal(false)
-    showToast(`La consulta de ${name} fue resuelta y eliminada correctamente.`, 'success')
+    try {
+      await chatsApi.closeChat(activeConversation.id)
+      deleteConversation(activeConversation.id)
+      setShowResolveModal(false)
+      showToast(`La consulta de ${name} fue resuelta y eliminada correctamente.`, 'success')
+    } catch {
+      showToast('Error al resolver la consulta. Intentá de nuevo.', 'error')
+    }
   }
 
   if (!activeConversation) {

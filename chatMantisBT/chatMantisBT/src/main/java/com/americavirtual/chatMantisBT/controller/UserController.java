@@ -40,9 +40,9 @@ public class UserController {
 
     /**
      * Authenticates user credentials
-     * POST /api/users/login
+     * POST /api/v1/users/login
      */
-    @GetMapping("/login")
+    @PostMapping("/login")
     public ResponseEntity<UserResponse> login(@Valid @RequestBody LoginRequest loginRequest) {
         UserResponse response = userService.login(loginRequest);
         return ResponseEntity.ok(response);

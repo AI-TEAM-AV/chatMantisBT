@@ -1,6 +1,27 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { v4 as uuidv4 } from 'uuid'
-import { conversationStorage, messageStorage, storage } from '../services/storage.js'
+import { messageStorage } from '../services/storage.js'
+import { chatsApi } from '../services/api.js'
+
+/**
+ * Maps a PendingUserResponse from the backend to a frontend conversation object.
+ *   Backend: { personNumber, state ("waiting"|"operator"), name, problematic }
+ *   Frontend status: "pending" = waiting, "open" = operator assigned
+ */
+function mapPendingToConversation(pending) {
+  return {
+    id: String(pending.personNumber),
+    userId: String(pending.personNumber),
+    userName: pending.name || `Usuario ${pending.personNumber}`,
+    subject: pending.problematic || 'Sin asunto',
+    status: pending.state === 'waiting' ? 'pending' : 'open',
+    priority: 'medium',
+    lastMessage: pending.problematic || '',
+    lastMessageAt: Date.now(),
+    unread: 0,
+    createdAt: Date.now(),
+  }
+}
 
 const ChatContext = createContext(null)
 
@@ -9,18 +30,24 @@ export function ChatProvider({ children }) {
   const [messages, setMessages] = useState({})
   const [activeId, setActiveId] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [loadingChats, setLoadingChats] = useState(true)
+  const [chatError, setChatError] = useState(null)
+
+  async function loadChats() {
+    setLoadingChats(true)
+    setChatError(null)
+    try {
+      const data = await chatsApi.getWaiting()
+      setConversations(data.map(mapPendingToConversation))
+    } catch {
+      setChatError('No se pudieron cargar las conversaciones. Verificá que el servidor esté disponible.')
+    } finally {
+      setLoadingChats(false)
+    }
+  }
 
   useEffect(() => {
-    const all = conversationStorage.getAll()
-    const resolved = all.filter(c => c.status === 'resolved')
-    const active = all.filter(c => c.status !== 'resolved')
-
-    if (resolved.length > 0) {
-      resolved.forEach(c => messageStorage.deleteByConversation(c.id))
-      conversationStorage.save(active)
-    }
-
-    setConversations(active)
+    loadChats()
     setMessages(messageStorage.getAll())
   }, [])
 
@@ -40,11 +67,7 @@ export function ChatProvider({ children }) {
 
   const selectConversation = useCallback((id) => {
     setActiveId(id)
-    setConversations(prev => {
-      const updated = prev.map(c => c.id === id ? { ...c, unread: 0 } : c)
-      conversationStorage.save(updated)
-      return updated
-    })
+    setConversations(prev => prev.map(c => c.id === id ? { ...c, unread: 0 } : c))
   }, [])
 
   const sendMessage = useCallback((conversationId, text, operatorName) => {
@@ -66,15 +89,13 @@ export function ChatProvider({ children }) {
       [conversationId]: [...(prev[conversationId] || []), message],
     }))
 
-    setConversations(prev => {
-      const updated = prev.map(c =>
+    setConversations(prev =>
+      prev.map(c =>
         c.id === conversationId
           ? { ...c, lastMessage: trimmed, lastMessageAt: message.createdAt }
           : c
       )
-      conversationStorage.save(updated)
-      return updated
-    })
+    )
   }, [])
 
   const receiveMessage = useCallback((conversationId, text, userName) => {
@@ -93,8 +114,8 @@ export function ChatProvider({ children }) {
       [conversationId]: [...(prev[conversationId] || []), message],
     }))
 
-    setConversations(prev => {
-      const updated = prev.map(c =>
+    setConversations(prev =>
+      prev.map(c =>
         c.id === conversationId
           ? {
               ...c,
@@ -104,19 +125,13 @@ export function ChatProvider({ children }) {
             }
           : c
       )
-      conversationStorage.save(updated)
-      return updated
-    })
+    )
   }, [activeId])
 
   const updateStatus = useCallback((conversationId, status) => {
-    setConversations(prev => {
-      const updated = prev.map(c =>
-        c.id === conversationId ? { ...c, status } : c
-      )
-      conversationStorage.save(updated)
-      return updated
-    })
+    setConversations(prev =>
+      prev.map(c => c.id === conversationId ? { ...c, status } : c)
+    )
   }, [])
 
   const getMessages = useCallback((conversationId) => {
@@ -124,11 +139,7 @@ export function ChatProvider({ children }) {
   }, [messages])
 
   const deleteConversation = useCallback((conversationId) => {
-    setConversations(prev => {
-      const updated = prev.filter(c => c.id !== conversationId)
-      conversationStorage.save(updated)
-      return updated
-    })
+    setConversations(prev => prev.filter(c => c.id !== conversationId))
     setMessages(prev => {
       const { [conversationId]: _removed, ...rest } = prev
       messageStorage.deleteByConversation(conversationId)
@@ -154,6 +165,9 @@ export function ChatProvider({ children }) {
       deleteConversation,
       getMessages,
       totalUnread,
+      loadingChats,
+      chatError,
+      refreshChats: loadChats,
     }}>
       {children}
     </ChatContext.Provider>

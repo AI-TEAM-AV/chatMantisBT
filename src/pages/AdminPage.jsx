@@ -1,12 +1,22 @@
 import { useState, useEffect } from 'react'
-import { v4 as uuidv4 } from 'uuid'
 import {
   MessageSquare, LogOut, Moon, Sun, UserPlus, Trash2,
   Eye, EyeOff, AlertCircle, CheckCircle2, Shield, Users, X
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useTheme } from '../context/ThemeContext.jsx'
-import { operatorListStorage } from '../services/storage.js'
+import { usersApi } from '../services/api.js'
+
+function mapUserResponse(data) {
+  const fullName = [data.name, data.surname].filter(Boolean).join(' ')
+  return {
+    id: data.id,
+    email: data.email,
+    name: fullName,
+    avatar: fullName.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase(),
+    role: data.role.toLowerCase(),
+  }
+}
 
 const ROLE_LABELS = { admin: 'Admin', operator: 'Operario' }
 const ROLE_STYLES = {
@@ -118,11 +128,16 @@ export default function AdminPage() {
   const [confirmDelete, setConfirmDelete] = useState(null)
 
   useEffect(() => {
-    setOperators(operatorListStorage.getAll())
+    reload()
   }, [])
 
-  function reload() {
-    setOperators(operatorListStorage.getAll())
+  async function reload() {
+    try {
+      const data = await usersApi.getAll()
+      setOperators(data.map(mapUserResponse))
+    } catch {
+      showFeedback('error', 'No se pudieron cargar los usuarios. Verificá que el servidor esté disponible.')
+    }
   }
 
   function showFeedback(type, text) {
@@ -137,7 +152,7 @@ export default function AdminPage() {
       errs.email = 'Email requerido.'
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
       errs.email = 'Email inválido.'
-    } else if (operatorListStorage.findByEmail(form.email)) {
+    } else if (operators.some(op => op.email.toLowerCase() === form.email.trim().toLowerCase())) {
       errs.email = 'Este email ya está registrado.'
     }
     if (!form.password) {
@@ -151,28 +166,43 @@ export default function AdminPage() {
     return errs
   }
 
-  function handleCreate(e) {
+  async function handleCreate(e) {
     e.preventDefault()
     const errs = validate()
     if (Object.keys(errs).length) { setErrors(errs); return }
-    const newOp = {
-      id: uuidv4(),
-      name: form.name.trim(),
-      email: form.email.trim().toLowerCase(),
-      password: form.password,
-      role: form.role,
-      avatar: getInitials(form.name.trim()),
-      createdAt: Date.now(),
+
+    const nameParts = form.name.trim().split(' ')
+    const firstName = nameParts[0]
+    const surname = nameParts.slice(1).join(' ') || firstName
+
+    try {
+      await usersApi.create({
+        name: firstName,
+        surname,
+        email: form.email.trim().toLowerCase(),
+        password: form.password,
+        role: form.role.toUpperCase(),
+      })
+      setForm(EMPTY_FORM)
+      setErrors({})
+      setView('list')
+      await reload()
+      showFeedback('success', `${form.role === 'admin' ? 'Admin' : 'Operario'} "${form.name.trim()}" creado correctamente.`)
+    } catch (err) {
+      showFeedback('error', err.message || 'Error al crear el usuario.')
     }
-    operatorListStorage.add(newOp)
-    setForm(EMPTY_FORM); setErrors({}); setView('list'); reload()
-    showFeedback('success', `${newOp.role === 'admin' ? 'Admin' : 'Operario'} "${newOp.name}" creado correctamente.`)
   }
 
-  function handleDelete(op) {
-    operatorListStorage.remove(op.id)
-    reload(); setConfirmDelete(null)
-    showFeedback('success', `Operario "${op.name}" eliminado.`)
+  async function handleDelete(op) {
+    try {
+      await usersApi.delete(op.id)
+      await reload()
+      setConfirmDelete(null)
+      showFeedback('success', `Operario "${op.name}" eliminado.`)
+    } catch (err) {
+      setConfirmDelete(null)
+      showFeedback('error', err.message || 'Error al eliminar el usuario.')
+    }
   }
 
   function handleChange(e) {

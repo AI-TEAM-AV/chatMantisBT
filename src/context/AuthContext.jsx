@@ -1,5 +1,21 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import { authStorage, operatorListStorage } from '../services/storage.js'
+import { authStorage } from '../services/storage.js'
+import { usersApi } from '../services/api.js'
+
+function getInitials(name) {
+  return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
+}
+
+function mapUserResponse(data) {
+  const fullName = [data.name, data.surname].filter(Boolean).join(' ')
+  return {
+    id: data.id,
+    email: data.email,
+    name: fullName,
+    avatar: getInitials(fullName),
+    role: data.role.toLowerCase(),
+  }
+}
 
 const AuthContext = createContext(null)
 
@@ -9,26 +25,20 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const saved = authStorage.getOperator()
-    if (saved) {
-      const stillExists = operatorListStorage.getAll().find(op => op.id === saved.id)
-      if (stillExists) {
-        setOperator({ ...saved, role: stillExists.role })
-      } else {
-        authStorage.clear()
-      }
-    }
+    if (saved) setOperator(saved)
     setLoading(false)
   }, [])
 
-  function login(email, password) {
-    const found = operatorListStorage.findByEmail(email)
-    if (!found || found.password !== password) {
+  async function login(email, password) {
+    try {
+      const data = await usersApi.login(email, password)
+      const safe = mapUserResponse(data)
+      authStorage.setOperator(safe)
+      setOperator(safe)
+      return { ok: true }
+    } catch (err) {
       return { ok: false, error: 'Email o contraseña incorrectos.' }
     }
-    const { password: _p, ...safe } = found
-    authStorage.setOperator(safe)
-    setOperator(safe)
-    return { ok: true }
   }
 
   function logout() {
@@ -36,16 +46,15 @@ export function AuthProvider({ children }) {
     setOperator(null)
   }
 
-  const refreshOperator = useCallback(() => {
+  const refreshOperator = useCallback(async () => {
     const saved = authStorage.getOperator()
-    if (saved) {
-      const fresh = operatorListStorage.getAll().find(op => op.id === saved.id)
-      if (fresh) {
-        const { password: _p, ...safe } = fresh
-        authStorage.setOperator(safe)
-        setOperator(safe)
-      }
-    }
+    if (!saved) return
+    try {
+      const data = await usersApi.getById(saved.id)
+      const fresh = mapUserResponse(data)
+      authStorage.setOperator(fresh)
+      setOperator(fresh)
+    } catch {}
   }, [])
 
   return (

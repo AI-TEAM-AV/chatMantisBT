@@ -21,7 +21,7 @@ import com.americavirtual.chatMantisBT.service.ChatService;
 import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping("/api//v1/chats")
+@RequestMapping("/api/v1/chats")
 public class ChatController {
 
     @Autowired

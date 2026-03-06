@@ -25,8 +25,7 @@ export default function LoginPage() {
       return
     }
     setLoading(true)
-    await new Promise(r => setTimeout(r, 400))
-    const result = login(form.email, form.password)
+    const result = await login(form.email, form.password)
     setLoading(false)
     if (result.ok) {
       navigate('/', { replace: true })
@@ -135,22 +134,6 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <div className="mt-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Cuentas de prueba:</p>
-          <div className="space-y-1">
-            <p className="text-xs text-slate-600 dark:text-slate-300">
-              <span className="font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">admin@helpdesk.com</span>
-              {' / '}
-              <span className="font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">admin123</span>
-              <span className="ml-1.5 text-[10px] text-primary-500 font-medium">Admin</span>
-            </p>
-            <p className="text-xs text-slate-600 dark:text-slate-300">
-              <span className="font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">soporte@helpdesk.com</span>
-              {' / '}
-              <span className="font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">soporte123</span>
-            </p>
-          </div>
-        </div>
 
       </div>
     </div>
