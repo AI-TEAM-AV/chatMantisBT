@@ -37,6 +37,62 @@ function FieldError({ msg }) {
   )
 }
 
+function getPasswordStrength(password) {
+  const checks = {
+    length:  password.length >= 6,
+    upper:   /[A-Z]/.test(password),
+    number:  /[0-9]/.test(password),
+    special: /[^A-Za-z0-9]/.test(password),
+  }
+  const score = Object.values(checks).filter(Boolean).length
+  return { checks, score }
+}
+
+const STRENGTH_LEVELS = [
+  { label: 'Débil',   barColor: 'bg-red-400',     textColor: 'text-red-500'     },
+  { label: 'Regular', barColor: 'bg-orange-400',   textColor: 'text-orange-500'  },
+  { label: 'Buena',   barColor: 'bg-yellow-400',   textColor: 'text-yellow-500'  },
+  { label: 'Fuerte',  barColor: 'bg-emerald-400',  textColor: 'text-emerald-500' },
+]
+
+const PASSWORD_HINTS = [
+  { key: 'length',  label: 'Mínimo 6 caracteres'         },
+  { key: 'upper',   label: 'Al menos una mayúscula (A-Z)' },
+  { key: 'number',  label: 'Al menos un número (0-9)'     },
+  { key: 'special', label: 'Carácter especial (!@#$…)'    },
+]
+
+function PasswordStrengthHint({ password }) {
+  if (!password) return null
+  const { checks, score } = getPasswordStrength(password)
+  const level = STRENGTH_LEVELS[Math.min(score - 1, 3)]
+  return (
+    <div className="mt-2 space-y-1.5">
+      <div className="flex items-center gap-2">
+        <div className="flex flex-1 gap-1">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= score ? level.barColor : 'bg-slate-200 dark:bg-slate-600'}`} />
+          ))}
+        </div>
+        <span className={`text-[10px] font-semibold ${level.textColor}`}>{level.label}</span>
+      </div>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+        {PASSWORD_HINTS.map(({ key, label }) => (
+          <div key={key} className="flex items-center gap-1">
+            {checks[key]
+              ? <CheckCircle2 size={10} className="text-emerald-500 shrink-0" />
+              : <AlertCircle  size={10} className="text-slate-300 dark:text-slate-600 shrink-0" />
+            }
+            <span className={`text-[10px] ${checks[key] ? 'text-slate-600 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}>
+              {label}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function AdminPage() {
   const { operator, logout } = useAuth()
   const { dark, toggle } = useTheme()
@@ -99,7 +155,7 @@ export default function AdminPage() {
     }
     operatorListStorage.add(newOp)
     setForm(EMPTY_FORM); setErrors({}); setView('list'); reload()
-    showFeedback('success', `Operario "${newOp.name}" creado correctamente.`)
+    showFeedback('success', `${newOp.role === 'admin' ? 'Admin' : 'Operario'} "${newOp.name}" creado correctamente.`)
   }
 
   function handleDelete(op) {
@@ -177,13 +233,22 @@ export default function AdminPage() {
             </div>
           </div>
           {view === 'list' && (
-            <button
-              onClick={() => { setView('create'); setForm(EMPTY_FORM); setErrors({}) }}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium transition-colors"
-            >
-              <UserPlus size={15} />
-              Nuevo operario
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { setView('create'); setForm({ ...EMPTY_FORM, role: 'operator' }); setErrors({}) }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-600 hover:bg-slate-700 text-white text-sm font-medium transition-colors"
+              >
+                <UserPlus size={15} />
+                Crear operario
+              </button>
+              <button
+                onClick={() => { setView('create'); setForm({ ...EMPTY_FORM, role: 'admin' }); setErrors({}) }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium transition-colors"
+              >
+                <Shield size={15} />
+                Crear admin
+              </button>
+            </div>
           )}
         </div>
 
@@ -236,7 +301,9 @@ export default function AdminPage() {
         {view === 'create' && (
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Nuevo operario</h2>
+              <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                {form.role === 'admin' ? 'Nuevo admin' : 'Nuevo operario'}
+              </h2>
               <button
                 onClick={() => { setView('list'); setErrors({}) }}
                 className="w-7 h-7 flex items-center justify-center rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
@@ -270,6 +337,7 @@ export default function AdminPage() {
                     {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
                 </div>
+                <PasswordStrengthHint password={form.password} />
                 {errors.password && <FieldError msg={errors.password} />}
               </div>
 
@@ -286,15 +354,6 @@ export default function AdminPage() {
                 {errors.confirmPassword && <FieldError msg={errors.confirmPassword} />}
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Rol</label>
-                <select name="role" value={form.role} onChange={handleChange}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm text-slate-800 dark:text-slate-200 outline-none focus:border-primary-400 dark:focus:border-primary-500 focus:ring-2 focus:ring-primary-100 dark:focus:ring-primary-900/30 transition-colors">
-                  <option value="operator">Operario</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => { setView('list'); setErrors({}) }}
                   className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
@@ -302,7 +361,7 @@ export default function AdminPage() {
                 </button>
                 <button type="submit"
                   className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium transition-colors">
-                  Crear operario
+                  {form.role === 'admin' ? 'Crear admin' : 'Crear operario'}
                 </button>
               </div>
             </form>

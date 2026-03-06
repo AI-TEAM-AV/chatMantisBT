@@ -55,8 +55,8 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary-600 mb-4 shadow-lg">
             <MessageSquare className="w-7 h-7 text-white" />
           </div>
-          <h1 className="text-2xl font-semibold text-slate-800 dark:text-slate-100">Mesa de Ayuda</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Ingresá con tu cuenta de operario</p>
+          <h1 className="text-2xl font-semibold text-slate-800 dark:text-slate-100">Mesa de Ayuda: GDE Entre Ríos</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Ingresá con tu cuenta</p>
         </div>
 
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-8">

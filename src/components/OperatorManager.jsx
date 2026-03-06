@@ -86,7 +86,7 @@ export default function OperatorManager({ onClose }) {
     setErrors({})
     setView('list')
     reload()
-    setFeedback({ type: 'success', text: `Operario "${newOp.name}" creado correctamente.` })
+    setFeedback({ type: 'success', text: `${newOp.role === 'admin' ? 'Admin' : 'Operario'} "${newOp.name}" creado correctamente.` })
     setTimeout(() => setFeedback(null), 4000)
   }
 
@@ -119,14 +119,24 @@ export default function OperatorManager({ onClose }) {
           </div>
           <div className="flex items-center gap-2">
             {view === 'list' && (
-              <button
-                onClick={() => { setView('create'); setForm(EMPTY_FORM); setErrors({}) }}
-                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg
-                  bg-primary-600 hover:bg-primary-700 text-white transition-colors"
-              >
-                <UserPlus size={13} />
-                Nuevo operario
-              </button>
+              <>
+                <button
+                  onClick={() => { setView('create'); setForm({ ...EMPTY_FORM, role: 'operator' }); setErrors({}) }}
+                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg
+                    bg-slate-600 hover:bg-slate-700 text-white transition-colors"
+                >
+                  <UserPlus size={13} />
+                  Crear operario
+                </button>
+                <button
+                  onClick={() => { setView('create'); setForm({ ...EMPTY_FORM, role: 'admin' }); setErrors({}) }}
+                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg
+                    bg-primary-600 hover:bg-primary-700 text-white transition-colors"
+                >
+                  <Shield size={13} />
+                  Crear admin
+                </button>
+              </>
             )}
             <button
               onClick={onClose}
@@ -194,6 +204,15 @@ export default function OperatorManager({ onClose }) {
           {/* CREATE VIEW */}
           {view === 'create' && (
             <form onSubmit={handleCreate} noValidate className="space-y-4">
+              <div className="flex items-center gap-2 pb-1">
+                <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                  form.role === 'admin'
+                    ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400'
+                    : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                }`}>
+                  {form.role === 'admin' ? 'Nuevo admin' : 'Nuevo operario'}
+                </span>
+              </div>
               <div>
                 <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                   Nombre completo
@@ -244,6 +263,7 @@ export default function OperatorManager({ onClose }) {
                     {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
                 </div>
+                <PasswordStrengthHint password={form.password} />
                 {errors.password && <FieldError msg={errors.password} />}
               </div>
 
@@ -269,23 +289,6 @@ export default function OperatorManager({ onClose }) {
                 {errors.confirmPassword && <FieldError msg={errors.confirmPassword} />}
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                  Rol
-                </label>
-                <select
-                  name="role"
-                  value={form.role}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700
-                    text-sm text-slate-800 dark:text-slate-200 outline-none
-                    focus:border-primary-400 dark:focus:border-primary-500 focus:ring-2 focus:ring-primary-100 dark:focus:ring-primary-900/30 transition-colors"
-                >
-                  <option value="operator">Operario</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
@@ -299,7 +302,7 @@ export default function OperatorManager({ onClose }) {
                   type="submit"
                   className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium transition-colors"
                 >
-                  Crear operario
+                  {form.role === 'admin' ? 'Crear admin' : 'Crear operario'}
                 </button>
               </div>
             </form>
@@ -355,6 +358,62 @@ function FieldError({ msg }) {
     <div className="flex items-center gap-1.5 mt-1.5 text-red-600 dark:text-red-400">
       <AlertCircle size={11} className="shrink-0" />
       <span className="text-xs">{msg}</span>
+    </div>
+  )
+}
+
+function getPasswordStrength(password) {
+  const checks = {
+    length:  password.length >= 6,
+    upper:   /[A-Z]/.test(password),
+    number:  /[0-9]/.test(password),
+    special: /[^A-Za-z0-9]/.test(password),
+  }
+  const score = Object.values(checks).filter(Boolean).length
+  return { checks, score }
+}
+
+const STRENGTH_LEVELS = [
+  { label: 'Débil',   barColor: 'bg-red-400',    textColor: 'text-red-500'     },
+  { label: 'Regular', barColor: 'bg-orange-400',  textColor: 'text-orange-500'  },
+  { label: 'Buena',   barColor: 'bg-yellow-400',  textColor: 'text-yellow-500'  },
+  { label: 'Fuerte',  barColor: 'bg-emerald-400', textColor: 'text-emerald-500' },
+]
+
+const PASSWORD_HINTS = [
+  { key: 'length',  label: 'Mínimo 6 caracteres'          },
+  { key: 'upper',   label: 'Al menos una mayúscula (A-Z)'  },
+  { key: 'number',  label: 'Al menos un número (0-9)'      },
+  { key: 'special', label: 'Carácter especial (!@#$…)'     },
+]
+
+function PasswordStrengthHint({ password }) {
+  if (!password) return null
+  const { checks, score } = getPasswordStrength(password)
+  const level = STRENGTH_LEVELS[Math.min(score - 1, 3)]
+  return (
+    <div className="mt-2 space-y-1.5">
+      <div className="flex items-center gap-2">
+        <div className="flex flex-1 gap-1">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= score ? level.barColor : 'bg-slate-200 dark:bg-slate-600'}`} />
+          ))}
+        </div>
+        <span className={`text-[10px] font-semibold ${level.textColor}`}>{level.label}</span>
+      </div>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+        {PASSWORD_HINTS.map(({ key, label }) => (
+          <div key={key} className="flex items-center gap-1">
+            {checks[key]
+              ? <CheckCircle2 size={10} className="text-emerald-500 shrink-0" />
+              : <AlertCircle  size={10} className="text-slate-300 dark:text-slate-600 shrink-0" />
+            }
+            <span className={`text-[10px] ${checks[key] ? 'text-slate-600 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}>
+              {label}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
