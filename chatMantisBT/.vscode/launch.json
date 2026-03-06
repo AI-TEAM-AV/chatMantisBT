@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Spring Boot-ChatMantisBtApplication<chatMantisBT>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.americavirtual.chatMantisBT.ChatMantisBtApplication",
+            "projectName": "chatMantisBT",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}
