@@ -49,7 +49,15 @@ export const usersApi = {
 }
 
 export const chatsApi = {
-  /** GET /api/v1/chats/waiting */
+  /** GET /api/v1/chats — todos los chats (waiting + operator) */
+  getAll: () =>
+    request('GET', '/api/v1/chats'),
+
+  /** GET /api/v1/chats/:personNumber */
+  getById: (personNumber) =>
+    request('GET', `/api/v1/chats/${personNumber}`),
+
+  /** GET /api/v1/chats/waiting — solo los que están en espera */
   getWaiting: () =>
     request('GET', '/api/v1/chats/waiting'),
 
@@ -64,4 +72,8 @@ export const chatsApi = {
   /** POST /api/v1/chats */
   createChat: (data) =>
     request('POST', '/api/v1/chats', data),
+
+  /** POST /api/v1/chats/:personNumber/messages — { sender, content } */
+  sendMessage: (personNumber, data) =>
+    request('POST', `/api/v1/chats/${personNumber}/messages`, data),
 }

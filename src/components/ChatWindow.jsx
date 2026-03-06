@@ -59,10 +59,10 @@ export default function ChatWindow() {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  function handleSend(e) {
+  async function handleSend(e) {
     e?.preventDefault()
     if (!input.trim() || !activeConversation) return
-    sendMessage(activeConversation.id, input, operator.name)
+    await sendMessage(activeConversation.id, input, operator.name)
     setInput('')
     inputRef.current?.focus()
   }

@@ -5,8 +5,8 @@ import { chatsApi } from '../services/api.js'
 
 /**
  * Maps a PendingUserResponse from the backend to a frontend conversation object.
- *   Backend: { personNumber, state ("waiting"|"operator"), name, problematic }
- *   Frontend status: "pending" = waiting, "open" = operator assigned
+ *   Backend state: "waiting" → frontend status: "pending"
+ *   Backend state: "operator" → frontend status: "open"
  */
 function mapPendingToConversation(pending) {
   return {
@@ -20,6 +20,26 @@ function mapPendingToConversation(pending) {
     lastMessageAt: Date.now(),
     unread: 0,
     createdAt: Date.now(),
+  }
+}
+
+/**
+ * Maps a ChatMessage from the backend to the frontend message format.
+ *   Backend: { sender: String, content: String, timestamp: "2024-03-06T10:30:45" }
+ *   Frontend: { id, conversationId, sender: 'operator'|'user', senderName, text, createdAt }
+ *
+ * Convention: if the backend sender === "operator", it's displayed as an operator bubble.
+ * All other sender values are treated as user messages.
+ */
+function mapBackendMessage(conversationId, msg) {
+  const isOperator = msg.sender === 'operator'
+  return {
+    id: uuidv4(),
+    conversationId,
+    sender: isOperator ? 'operator' : 'user',
+    senderName: msg.sender,
+    text: msg.content,
+    createdAt: msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now(),
   }
 }
 
@@ -37,8 +57,27 @@ export function ChatProvider({ children }) {
     setLoadingChats(true)
     setChatError(null)
     try {
-      const data = await chatsApi.getWaiting()
+      const data = await chatsApi.getAll()
       setConversations(data.map(mapPendingToConversation))
+
+      // Populate messages from backend into local state
+      const backendMessages = {}
+      data.forEach(pending => {
+        if (pending.messages && pending.messages.length > 0) {
+          const convId = String(pending.personNumber)
+          backendMessages[convId] = pending.messages.map(msg =>
+            mapBackendMessage(convId, msg)
+          )
+        }
+      })
+      // Merge backend messages with any local-only messages (operator sends are in both)
+      setMessages(prev => {
+        const merged = { ...prev }
+        Object.entries(backendMessages).forEach(([convId, msgs]) => {
+          merged[convId] = msgs
+        })
+        return merged
+      })
     } catch {
       setChatError('No se pudieron cargar las conversaciones. Verificá que el servidor esté disponible.')
     } finally {
@@ -48,7 +87,6 @@ export function ChatProvider({ children }) {
 
   useEffect(() => {
     loadChats()
-    setMessages(messageStorage.getAll())
   }, [])
 
   const activeConversation = conversations.find(c => c.id === activeId) || null
@@ -70,7 +108,12 @@ export function ChatProvider({ children }) {
     setConversations(prev => prev.map(c => c.id === id ? { ...c, unread: 0 } : c))
   }, [])
 
-  const sendMessage = useCallback((conversationId, text, operatorName) => {
+  /**
+   * Sends an operator message: updates local state optimistically
+   * and persists to the backend via POST /api/v1/chats/{personNumber}/messages.
+   * sender field sent to backend is literally "operator" so it can be distinguished on reload.
+   */
+  const sendMessage = useCallback(async (conversationId, text, operatorName) => {
     const trimmed = text.trim()
     if (!trimmed) return
 
@@ -83,12 +126,12 @@ export function ChatProvider({ children }) {
       createdAt: Date.now(),
     }
 
+    // Optimistic local update
     messageStorage.add(conversationId, message)
     setMessages(prev => ({
       ...prev,
       [conversationId]: [...(prev[conversationId] || []), message],
     }))
-
     setConversations(prev =>
       prev.map(c =>
         c.id === conversationId
@@ -96,6 +139,13 @@ export function ChatProvider({ children }) {
           : c
       )
     )
+
+    // Persist to backend (fire-and-forget: UI is already updated)
+    try {
+      await chatsApi.sendMessage(conversationId, { sender: 'operator', content: trimmed })
+    } catch {
+      console.warn('No se pudo guardar el mensaje en el servidor.')
+    }
   }, [])
 
   const receiveMessage = useCallback((conversationId, text, userName) => {

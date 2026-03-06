@@ -29,8 +29,28 @@ public class ChatController {
     private ChatService chatService;
 
     /**
+     * Obtiene todos los chats sin importar su estado
+     * GET /api/v1/chats
+     */
+    @GetMapping
+    public ResponseEntity<List<PendingUserResponse>> getAllChats() {
+        List<PendingUserResponse> chats = chatService.getAllChats();
+        return ResponseEntity.ok(chats);
+    }
+
+    /**
+     * Obtiene un chat específico por número de persona
+     * GET /api/v1/chats/{personNumber}
+     */
+    @GetMapping("/{personNumber}")
+    public ResponseEntity<PendingUserResponse> getChatByPersonNumber(@PathVariable Long personNumber) {
+        PendingUserResponse response = chatService.getChatByPersonNumber(personNumber);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * Obtiene todos los usuarios pendientes con estado "waiting"
-     * GET /api/chats/waiting
+     * GET /api/v1/chats/waiting
      */
     @GetMapping("/waiting")
     public ResponseEntity<List<PendingUserResponse>> getWaitingUsers() {

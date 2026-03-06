@@ -41,4 +41,17 @@ public interface ChatService {
      * @return el chat actualizado con todos sus mensajes
      */
     PendingUserResponse sendMessage(Long personNumber, ChatMessageRequest request);
+
+    /**
+     * Obtiene todos los chats sin importar su estado.
+     * @return lista de todos los chats
+     */
+    List<PendingUserResponse> getAllChats();
+
+    /**
+     * Obtiene un chat específico por número de persona.
+     * @param personNumber identificador de la sesión
+     * @return el chat encontrado
+     */
+    PendingUserResponse getChatByPersonNumber(Long personNumber);
 }

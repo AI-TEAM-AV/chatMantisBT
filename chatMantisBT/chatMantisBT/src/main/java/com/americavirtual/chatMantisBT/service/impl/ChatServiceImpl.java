@@ -2,6 +2,7 @@ package com.americavirtual.chatMantisBT.service.impl;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -84,5 +85,20 @@ public class ChatServiceImpl implements ChatService {
         PendingUser updated = pendingUserRepository.save(pendingUser);
 
         return new PendingUserResponse(updated);
+    }
+
+    @Override
+    public List<PendingUserResponse> getAllChats() {
+        return StreamSupport.stream(pendingUserRepository.findAll().spliterator(), false)
+                .map(PendingUserResponse::new)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public PendingUserResponse getChatByPersonNumber(Long personNumber) {
+        PendingUser pendingUser = pendingUserRepository.findById(personNumber)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Chat not found with person number: " + personNumber));
+        return new PendingUserResponse(pendingUser);
     }
 }
