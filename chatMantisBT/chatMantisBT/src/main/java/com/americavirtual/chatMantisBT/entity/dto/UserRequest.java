@@ -1,7 +1,10 @@
 package com.americavirtual.chatMantisBT.entity.dto;
 
+import com.americavirtual.chatMantisBT.entity.Role;
+
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -29,4 +32,7 @@ public class UserRequest {
     @NotBlank(message = "Last name cannot be blank")
     @Size(max = 100, message = "Last name must not exceed 100 characters")
     private String surname;
+
+    @NotNull(message = "Role cannot be null")
+    private Role role;
 }

@@ -9,6 +9,8 @@ import com.americavirtual.chatMantisBT.entity.dto.UserRequest;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -33,6 +35,7 @@ public class User {
         this.password = request.getPassword();
         this.name = request.getName();
         this.surname = request.getSurname();
+        this.role = request.getRole();
     }
 
     @Id
@@ -61,4 +64,8 @@ public class User {
     @NotBlank(message = "Last name cannot be blank")
     @Size(max = 100, message = "Last name must not exceed 100 characters")
     private String surname;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false, length = 20)
+    private Role role;
 }
