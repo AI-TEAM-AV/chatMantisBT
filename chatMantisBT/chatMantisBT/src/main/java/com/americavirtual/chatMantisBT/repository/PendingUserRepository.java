@@ -1,6 +1,9 @@
 package com.americavirtual.chatMantisBT.repository;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
@@ -9,6 +12,33 @@ import com.americavirtual.chatMantisBT.entity.PendingUser;
 
 @Repository
 public interface PendingUserRepository extends CrudRepository<PendingUser, Long> {
+    
+    /**
+     * Busca todos los usuarios pendientes con un estado específico
+     * @param state el estado a buscar ("waiting" o "operator")
+     * @return lista de usuarios con el estado especificado
+     */
+    default List<PendingUser> findByState(String state) {
+        return StreamSupport.stream(findAll().spliterator(), false)
+                .filter(user -> state.equals(user.getState()))
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * Busca todos los usuarios en estado "waiting"
+     * @return lista de usuarios en espera
+     */
+    default List<PendingUser> findWaitingUsers() {
+        return findByState("waiting");
+    }
+    
+    /**
+     * Busca todos los usuarios en estado "operator"
+     * @return lista de usuarios siendo atendidos por operador
+     */
+    default List<PendingUser> findOperatorUsers() {
+        return findByState("operator");
+    }
     
     /**
      * Actualiza el state de un PendingUser a "operator"
