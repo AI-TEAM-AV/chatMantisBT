@@ -6,11 +6,11 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import org.springframework.data.repository.CrudRepository;
-import org.springframework.stereotype.Repository;
+// import org.springframework.stereotype.Repository; // quitar
 
 import com.americavirtual.chatMantisBT.entity.PendingUser;
 
-@Repository
+// @Repository // quitar
 public interface PendingUserRepository extends CrudRepository<PendingUser, Long> {
     
     /**

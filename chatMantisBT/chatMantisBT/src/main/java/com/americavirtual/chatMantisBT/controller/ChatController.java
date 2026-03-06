@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.americavirtual.chatMantisBT.entity.dto.ChatMessageRequest;
 import com.americavirtual.chatMantisBT.entity.dto.CreateChatRequest;
 import com.americavirtual.chatMantisBT.entity.dto.PendingUserResponse;
 import com.americavirtual.chatMantisBT.service.ChatService;
@@ -65,5 +66,17 @@ public class ChatController {
     public ResponseEntity<PendingUserResponse> createChat(@Valid @RequestBody CreateChatRequest createChatRequest) {
         PendingUserResponse response = chatService.createChat(createChatRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * Agrega un mensaje al historial de mensajes de un chat activo.
+     * POST /api/v1/chats/{personNumber}/messages
+     */
+    @PostMapping("/{personNumber}/messages")
+    public ResponseEntity<PendingUserResponse> sendMessage(
+            @PathVariable Long personNumber,
+            @Valid @RequestBody ChatMessageRequest request) {
+        PendingUserResponse response = chatService.sendMessage(personNumber, request);
+        return ResponseEntity.ok(response);
     }
 }

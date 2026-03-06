@@ -2,6 +2,7 @@ package com.americavirtual.chatMantisBT.service;
 
 import java.util.List;
 
+import com.americavirtual.chatMantisBT.entity.dto.ChatMessageRequest;
 import com.americavirtual.chatMantisBT.entity.dto.CreateChatRequest;
 import com.americavirtual.chatMantisBT.entity.dto.PendingUserResponse;
 
@@ -32,4 +33,12 @@ public interface ChatService {
      * @return el chat creado
      */
     PendingUserResponse createChat(CreateChatRequest createChatRequest);
+
+    /**
+     * Agrega un mensaje a la lista de mensajes del chat activo.
+     * @param personNumber identificador de la sesión
+     * @param request datos del mensaje (sender + content)
+     * @return el chat actualizado con todos sus mensajes
+     */
+    PendingUserResponse sendMessage(Long personNumber, ChatMessageRequest request);
 }
