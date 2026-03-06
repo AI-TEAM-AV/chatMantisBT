@@ -6,7 +6,9 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.americavirtual.chatMantisBT.entity.ChatMessage;
 import com.americavirtual.chatMantisBT.entity.PendingUser;
+import com.americavirtual.chatMantisBT.entity.dto.ChatMessageRequest;
 import com.americavirtual.chatMantisBT.entity.dto.CreateChatRequest;
 import com.americavirtual.chatMantisBT.entity.dto.PendingUserResponse;
 import com.americavirtual.chatMantisBT.repository.PendingUserRepository;
@@ -70,5 +72,17 @@ public class ChatServiceImpl implements ChatService {
         PendingUser savedUser = pendingUserRepository.save(pendingUser);
 
         return new PendingUserResponse(savedUser);
+    }
+
+    @Override
+    public PendingUserResponse sendMessage(Long personNumber, ChatMessageRequest request) {
+        PendingUser pendingUser = pendingUserRepository.findById(personNumber)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Pending user not found with person number: " + personNumber));
+
+        pendingUser.getMessages().add(new ChatMessage(request.getSender(), request.getContent()));
+        PendingUser updated = pendingUserRepository.save(pendingUser);
+
+        return new PendingUserResponse(updated);
     }
 }

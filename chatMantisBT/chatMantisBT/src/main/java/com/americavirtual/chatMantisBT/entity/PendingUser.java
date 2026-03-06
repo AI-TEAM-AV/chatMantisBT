@@ -1,5 +1,8 @@
 package com.americavirtual.chatMantisBT.entity;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.springframework.data.annotation.Id;
 import org.springframework.data.redis.core.RedisHash;
 
@@ -39,4 +42,6 @@ public class PendingUser {
     private String name;
     
     private String problematic;
+
+    private List<ChatMessage> messages = new ArrayList<>();
 }
