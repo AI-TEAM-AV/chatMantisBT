@@ -38,6 +38,7 @@ public class ChatServiceImpl implements ChatService {
         // Actualizar estado a "operator"
         pendingUser.setState("operator");
         PendingUser updatedUser = pendingUserRepository.save(pendingUser);
+        EvolutionApi.sendMessage(personNumber, "👨‍💻 ¡Un operador se ha unido al chat!");
 
         return new PendingUserResponse(updatedUser);
     }
@@ -52,6 +53,7 @@ public class ChatServiceImpl implements ChatService {
 
         // Eliminar el usuario pendiente
         pendingUserRepository.deleteById(personNumber);
+        EvolutionApi.sendMessage(personNumber, "👨‍💻 ¡El chat ha sido cerrado!");
     }
 
     @Override
@@ -70,6 +72,7 @@ public class ChatServiceImpl implements ChatService {
         pendingUser.setState("operator");
 
         PendingUser savedUser = pendingUserRepository.save(pendingUser);
+        EvolutionApi.sendMessage(createChatRequest.getPersonNumber(), "👨‍💻 ¡Un operador se ha unido al chat!");
 
         return new PendingUserResponse(savedUser);
     }
@@ -82,6 +85,11 @@ public class ChatServiceImpl implements ChatService {
 
         pendingUser.getMessages().add(new ChatMessage(request.getSender(), request.getContent()));
         PendingUser updated = pendingUserRepository.save(pendingUser);
+
+        // Enviar mensaje a Evolution API si es operador
+        if(request.getSender().equals("operator")) {
+            EvolutionApi.sendMessage(personNumber, request.getContent());
+        }
 
         return new PendingUserResponse(updated);
     }
