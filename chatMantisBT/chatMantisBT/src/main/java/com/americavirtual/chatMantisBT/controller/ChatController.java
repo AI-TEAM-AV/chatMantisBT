@@ -22,7 +22,7 @@ import com.americavirtual.chatMantisBT.service.ChatService;
 import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping("/api//v1/chats")
+@RequestMapping("/api/v1/chats")
 public class ChatController {
 
     @Autowired
@@ -42,7 +42,7 @@ public class ChatController {
      * Inicia un chat cambiando el estado del usuario pendiente a "operator"
      * PATCH /api/chats/{personNumber}/start
      */
-    @PatchMapping("/{personNumber}/start")
+    @PostMapping("/{personNumber}/start")
     public ResponseEntity<PendingUserResponse> startChat(@PathVariable Long personNumber) {
         PendingUserResponse response = chatService.startChat(personNumber);
         return ResponseEntity.ok(response);
