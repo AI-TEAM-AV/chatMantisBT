@@ -61,9 +61,9 @@ export const chatsApi = {
   getWaiting: () =>
     request('GET', '/api/v1/chats/waiting'),
 
-  /** PATCH /api/v1/chats/:personNumber/start */
+  /** POST /api/v1/chats/:personNumber/start */
   startChat: (personNumber) =>
-    request('PATCH', `/api/v1/chats/${personNumber}/start`),
+    request('POST', `/api/v1/chats/${personNumber}/start`),
 
   /** DELETE /api/v1/chats/:personNumber */
   closeChat: (personNumber) =>

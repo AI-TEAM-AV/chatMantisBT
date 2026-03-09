@@ -13,7 +13,7 @@ public class CorsConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/**") // Aplica a todas las rutas incluyendo anidadas
-                        .allowedOrigins("http://localhost:5173") // Frontend React
+                        .allowedOrigins("http://localhost:5173", "http://localhost:5174") // Frontend React (Vite uses 5174 as fallback)
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
                         .allowedHeaders("*")
                         .allowCredentials(true);

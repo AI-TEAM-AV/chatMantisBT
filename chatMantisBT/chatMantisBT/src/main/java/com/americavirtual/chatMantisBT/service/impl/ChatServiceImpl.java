@@ -109,4 +109,20 @@ public class ChatServiceImpl implements ChatService {
                         "Chat not found with person number: " + personNumber));
         return new PendingUserResponse(pendingUser);
     }
+
+    @Override
+    public void receiveWebhookMessage(Long personNumber, String name, String text) {
+        PendingUser pendingUser = pendingUserRepository.findById(personNumber)
+                .orElseGet(() -> {
+                    PendingUser newUser = new PendingUser();
+                    newUser.setPersonNumber(personNumber);
+                    newUser.setName(name != null ? name : String.valueOf(personNumber));
+                    newUser.setProblematic(text);
+                    newUser.setState("waiting");
+                    return newUser;
+                });
+
+        pendingUser.getMessages().add(new ChatMessage(String.valueOf(personNumber), text));
+        pendingUserRepository.save(pendingUser);
+    }
 }

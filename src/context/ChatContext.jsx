@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { messageStorage } from '../services/storage.js'
 import { chatsApi } from '../services/api.js'
@@ -53,14 +53,47 @@ export function ChatProvider({ children }) {
   const [loadingChats, setLoadingChats] = useState(true)
   const [chatError, setChatError] = useState(null)
 
+  // Refs used inside loadChats to avoid stale closures
+  const prevMessageCounts = useRef({})
+  const isFirstLoad = useRef(true)
+  const activeIdRef = useRef(activeId)
+  useEffect(() => { activeIdRef.current = activeId }, [activeId])
+
   async function loadChats() {
     setLoadingChats(true)
     setChatError(null)
     try {
       const data = await chatsApi.getAll()
-      setConversations(data.map(mapPendingToConversation))
 
-      // Populate messages from backend into local state
+      // Compute how many new messages arrived per conversation since last poll
+      const newCounts = {}
+      const unreadDeltas = {}
+      data.forEach(pending => {
+        const convId = String(pending.personNumber)
+        const count = (pending.messages || []).length
+        newCounts[convId] = count
+        if (!isFirstLoad.current && convId !== activeIdRef.current) {
+          // For conversations we haven't seen before, treat current count as baseline (no spike)
+          const prev = prevMessageCounts.current[convId] ?? count
+          const delta = count - prev
+          if (delta > 0) unreadDeltas[convId] = delta
+        }
+      })
+      prevMessageCounts.current = newCounts
+      isFirstLoad.current = false
+
+      // Update conversations, carrying over existing unread and adding deltas
+      setConversations(prev => {
+        const prevMap = Object.fromEntries(prev.map(c => [c.id, c]))
+        return data.map(pending => {
+          const conv = mapPendingToConversation(pending)
+          const existing = prevMap[conv.id]
+          conv.unread = (existing?.unread || 0) + (unreadDeltas[conv.id] || 0)
+          return conv
+        })
+      })
+
+      // Replace messages for each conversation with the latest from backend
       const backendMessages = {}
       data.forEach(pending => {
         if (pending.messages && pending.messages.length > 0) {
@@ -70,7 +103,6 @@ export function ChatProvider({ children }) {
           )
         }
       })
-      // Merge backend messages with any local-only messages (operator sends are in both)
       setMessages(prev => {
         const merged = { ...prev }
         Object.entries(backendMessages).forEach(([convId, msgs]) => {
@@ -87,6 +119,8 @@ export function ChatProvider({ children }) {
 
   useEffect(() => {
     loadChats()
+    const interval = setInterval(loadChats, 5000)
+    return () => clearInterval(interval)
   }, [])
 
   const activeConversation = conversations.find(c => c.id === activeId) || null

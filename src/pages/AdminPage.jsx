@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   MessageSquare, LogOut, Moon, Sun, UserPlus, Trash2,
-  Eye, EyeOff, AlertCircle, CheckCircle2, Shield, Users, X
+  Eye, EyeOff, AlertCircle, CheckCircle2, Shield, Users, X,
+  KeyRound, ChevronDown
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useTheme } from '../context/ThemeContext.jsx'
 import { usersApi } from '../services/api.js'
+import ChangePasswordModal from '../components/ChangePasswordModal.jsx'
 
 function mapUserResponse(data) {
   const fullName = [data.name, data.surname].filter(Boolean).join(' ')
@@ -117,6 +119,20 @@ function PasswordStrengthHint({ password }) {
 export default function AdminPage() {
   const { operator, logout } = useAuth()
   const { dark, toggle } = useTheme()
+
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const profileMenuRef = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
+        setShowProfileMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const [operators, setOperators] = useState([])
   const [view, setView] = useState('list')
@@ -231,30 +247,67 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 mr-2">
-            <div className="w-7 h-7 rounded-full bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 flex items-center justify-center text-xs font-bold">
+        <div className="relative" ref={profileMenuRef}>
+          <button
+            onClick={() => setShowProfileMenu(v => !v)}
+            className="flex items-center gap-1.5 rounded-lg px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+          >
+            <div className="w-7 h-7 rounded-full bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 flex items-center justify-center text-xs font-bold shrink-0">
               {operator?.avatar || 'A'}
             </div>
-            <div className="hidden sm:block">
+            <div className="hidden sm:block text-left">
               <p className="text-xs font-medium text-slate-700 dark:text-slate-200 leading-tight">{operator?.name}</p>
               <p className="text-[10px] text-slate-400 dark:text-slate-500">{operator?.email}</p>
             </div>
-          </div>
-          <button
-            onClick={toggle}
-            title={dark ? 'Modo claro' : 'Modo oscuro'}
-            className="w-8 h-8 flex items-center justify-center rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-          >
-            {dark ? <Sun size={15} /> : <Moon size={15} />}
+            <ChevronDown size={11} className={`text-slate-400 dark:text-slate-500 transition-transform duration-150 ${showProfileMenu ? 'rotate-180' : ''}`} />
           </button>
-          <button
-            onClick={logout}
-            title="Cerrar sesión"
-            className="w-8 h-8 flex items-center justify-center rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-          >
-            <LogOut size={15} />
-          </button>
+
+          {showProfileMenu && (
+            <div className="absolute right-0 top-full mt-2 w-52 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl shadow-lg overflow-hidden z-20">
+
+              {/* Operator info */}
+              <div className="flex items-center gap-2.5 px-3 py-3 border-b border-slate-100 dark:border-slate-600">
+                <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 flex items-center justify-center text-sm font-bold shrink-0">
+                  {operator?.avatar || 'A'}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">{operator?.name}</p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-400 truncate">{operator?.email}</p>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <button
+                onClick={() => { setShowProfileMenu(false); setShowPasswordModal(true) }}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors"
+              >
+                <KeyRound size={13} className="text-slate-400 dark:text-slate-400 shrink-0" />
+                Cambiar contraseña
+              </button>
+
+              <button
+                onClick={() => { setShowProfileMenu(false); toggle() }}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors"
+              >
+                {dark
+                  ? <Sun size={13} className="text-slate-400 dark:text-slate-400 shrink-0" />
+                  : <Moon size={13} className="text-slate-400 dark:text-slate-400 shrink-0" />
+                }
+                {dark ? 'Modo claro' : 'Modo oscuro'}
+              </button>
+
+              <div className="border-t border-slate-100 dark:border-slate-600">
+                <button
+                  onClick={() => { setShowProfileMenu(false); logout() }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                >
+                  <LogOut size={13} className="shrink-0" />
+                  Cerrar sesión
+                </button>
+              </div>
+
+            </div>
+          )}
         </div>
       </header>
 
@@ -409,6 +462,8 @@ export default function AdminPage() {
           </div>
         )}
       </main>
+
+      <ChangePasswordModal isOpen={showPasswordModal} onClose={() => setShowPasswordModal(false)} />
 
       {/* Delete confirmation modal */}
       {confirmDelete && (

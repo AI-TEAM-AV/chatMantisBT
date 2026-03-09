@@ -54,4 +54,15 @@ public interface ChatService {
      * @return el chat encontrado
      */
     PendingUserResponse getChatByPersonNumber(Long personNumber);
+
+    /**
+     * Procesa un mensaje entrante recibido desde Evolution API via webhook.
+     * Si no existe un chat para el personNumber, lo crea con estado "waiting".
+     * Luego agrega el mensaje a la lista de mensajes del chat.
+     *
+     * @param personNumber número de WhatsApp del usuario
+     * @param name         nombre del contacto (pushName)
+     * @param text         contenido del mensaje
+     */
+    void receiveWebhookMessage(Long personNumber, String name, String text);
 }
