@@ -3,6 +3,7 @@ package com.americavirtual.chatMantisBT.service;
 import java.util.List;
 
 import com.americavirtual.chatMantisBT.entity.dto.ChangePasswordRequest;
+import com.americavirtual.chatMantisBT.entity.dto.AdminChangePasswordRequest;
 import com.americavirtual.chatMantisBT.entity.dto.LoginRequest;
 import com.americavirtual.chatMantisBT.entity.dto.UserRequest;
 import com.americavirtual.chatMantisBT.entity.dto.UserResponse;
@@ -35,6 +36,15 @@ public interface UserService {
      * @param changePasswordRequest current and new password
      */
     void changePassword(Long userId, ChangePasswordRequest changePasswordRequest);
+    
+    /**
+     * Allows an administrator to change a user's password without requiring
+     * the current password (admin reset scenario).
+     *
+     * @param userId user ID whose password will be reset
+     * @param request new password data
+     */
+    void adminChangePassword(Long userId, AdminChangePasswordRequest request);
     
     /**
      * Retrieves all users

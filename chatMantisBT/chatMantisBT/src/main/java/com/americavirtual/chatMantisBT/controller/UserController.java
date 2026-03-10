@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.americavirtual.chatMantisBT.entity.dto.ChangePasswordRequest;
+import com.americavirtual.chatMantisBT.entity.dto.AdminChangePasswordRequest;
 import com.americavirtual.chatMantisBT.entity.dto.LoginRequest;
 import com.americavirtual.chatMantisBT.entity.dto.UserRequest;
 import com.americavirtual.chatMantisBT.entity.dto.UserResponse;
@@ -77,6 +78,18 @@ public class UserController {
             @PathVariable Long userId,
             @Valid @RequestBody ChangePasswordRequest changePasswordRequest) {
         userService.changePassword(userId, changePasswordRequest);
+        return ResponseEntity.noContent().build();
+    }
+    
+    /**
+     * Allows an admin to reset a user's password without the current password.
+     * PATCH /api/v1/users/{userId}/password/admin
+     */
+    @PatchMapping("/{userId}/password/admin")
+    public ResponseEntity<Void> adminChangePassword(
+            @PathVariable Long userId,
+            @Valid @RequestBody AdminChangePasswordRequest request) {
+        userService.adminChangePassword(userId, request);
         return ResponseEntity.noContent().build();
     }
 

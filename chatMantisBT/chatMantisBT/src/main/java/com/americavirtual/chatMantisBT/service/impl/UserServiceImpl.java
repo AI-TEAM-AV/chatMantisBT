@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.americavirtual.chatMantisBT.entity.User;
 import com.americavirtual.chatMantisBT.entity.dto.ChangePasswordRequest;
+import com.americavirtual.chatMantisBT.entity.dto.AdminChangePasswordRequest;
 import com.americavirtual.chatMantisBT.entity.dto.LoginRequest;
 import com.americavirtual.chatMantisBT.entity.dto.UserRequest;
 import com.americavirtual.chatMantisBT.entity.dto.UserResponse;
@@ -83,6 +84,15 @@ public class UserServiceImpl implements UserService {
 
         // Update password
         user.setPassword(passwordEncoder.encode(changePasswordRequest.getNewPassword()));
+        userRepository.save(user);
+    }
+    
+    @Override
+    public void adminChangePassword(Long userId, AdminChangePasswordRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userId));
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
     }
 

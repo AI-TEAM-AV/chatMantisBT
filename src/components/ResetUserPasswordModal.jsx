@@ -1,18 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, KeyRound, Eye, EyeOff, Loader } from 'lucide-react'
 import { usersApi } from '../services/api.js'
-import { useAuth } from '../context/AuthContext.jsx'
-import { useToast } from '../context/ToastContext.jsx'
 import PasswordStrengthHint from './PasswordStrengthHint.jsx'
 
-export default function ChangePasswordModal({ isOpen, onClose }) {
-  const { operator } = useAuth()
-  const { showToast } = useToast()
-
-  const [currentPassword, setCurrentPassword] = useState('')
+export default function ResetUserPasswordModal({ isOpen, onClose, user, onSuccess }) {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [showCurrent, setShowCurrent] = useState(false)
   const [showNew, setShowNew] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -20,10 +13,8 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
 
   useEffect(() => {
     if (isOpen) {
-      setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
-      setShowCurrent(false)
       setShowNew(false)
       setError('')
       setTimeout(() => firstRef.current?.focus(), 50)
@@ -54,17 +45,17 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
 
     setLoading(true)
     try {
-      await usersApi.changePassword(operator.id, { currentPassword, newPassword })
-      showToast('Contraseña actualizada correctamente.', 'success')
+      await usersApi.adminChangePassword(user.id, { newPassword })
+      if (onSuccess) onSuccess()
       onClose()
     } catch (err) {
-      setError(err.message || 'No se pudo actualizar la contraseña. Verificá la contraseña actual.')
+      setError(err.message || 'No se pudo restablecer la contraseña.')
     } finally {
       setLoading(false)
     }
   }
 
-  if (!isOpen) return null
+  if (!isOpen || !user) return null
 
   return (
     <div
@@ -77,7 +68,12 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
           <div className="flex items-center gap-2">
             <KeyRound size={15} className="text-primary-500" />
-            <h2 className="font-semibold text-slate-800 dark:text-slate-100 text-sm">Cambiar contraseña</h2>
+            <div className="flex flex-col">
+              <h2 className="font-semibold text-slate-800 dark:text-slate-100 text-sm">Restablecer contraseña</h2>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                {user.name} &lt;{user.email}&gt;
+              </p>
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -90,33 +86,9 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
         {/* Form */}
         <form onSubmit={handleSubmit} className="px-5 py-4 space-y-3.5">
 
-          <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
-              Contraseña actual
-            </label>
-            <div className="relative">
-              <input
-                ref={firstRef}
-                type={showCurrent ? 'text' : 'password'}
-                value={currentPassword}
-                onChange={e => setCurrentPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-3 py-2.5 pr-9 text-sm rounded-lg border border-slate-200 dark:border-slate-600
-                  bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-slate-200
-                  focus:bg-white dark:focus:bg-slate-600 focus:border-primary-300 dark:focus:border-primary-500
-                  focus:ring-1 focus:ring-primary-100 dark:focus:ring-primary-900 outline-none transition-all
-                  placeholder-slate-400 dark:placeholder-slate-500"
-              />
-              <button
-                type="button"
-                onClick={() => setShowCurrent(v => !v)}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-                tabIndex={-1}
-              >
-                {showCurrent ? <EyeOff size={14} /> : <Eye size={14} />}
-              </button>
-            </div>
-          </div>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-1">
+            Esta acción no requiere la contraseña actual del usuario. Después de guardar, el usuario deberá iniciar sesión con la nueva contraseña.
+          </p>
 
           <div>
             <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
@@ -124,6 +96,7 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
             </label>
             <div className="relative">
               <input
+                ref={firstRef}
                 type={showNew ? 'text' : 'password'}
                 value={newPassword}
                 onChange={e => setNewPassword(e.target.value)}
@@ -182,13 +155,13 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
             </button>
             <button
               type="submit"
-              disabled={loading || !currentPassword || !newPassword || !confirmPassword}
+              disabled={loading || !newPassword || !confirmPassword}
               className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg
                 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white transition-colors
                 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? <Loader size={12} className="animate-spin" /> : <KeyRound size={12} />}
-              {loading ? 'Guardando…' : 'Cambiar contraseña'}
+              {loading ? 'Guardando…' : 'Restablecer contraseña'}
             </button>
           </div>
         </form>
@@ -196,3 +169,4 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
     </div>
   )
 }
+

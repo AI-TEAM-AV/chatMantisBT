@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { X, UserPlus, Trash2, Eye, EyeOff, Shield, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { X, UserPlus, Trash2, Eye, EyeOff, Shield, AlertCircle } from 'lucide-react'
 import { usersApi } from '../services/api.js'
 import { useAuth } from '../context/AuthContext.jsx'
+import PasswordStrengthHint from './PasswordStrengthHint.jsx'
 
 function mapUserResponse(data) {
   const fullName = [data.name, data.surname].filter(Boolean).join(' ')
@@ -379,73 +380,6 @@ function FieldError({ msg }) {
     <div className="flex items-center gap-1.5 mt-1.5 text-red-600 dark:text-red-400">
       <AlertCircle size={11} className="shrink-0" />
       <span className="text-xs">{msg}</span>
-    </div>
-  )
-}
-
-function getPasswordStrength(password) {
-  const checks = {
-    length:  password.length >= 6,
-    upper:   /[A-Z]/.test(password),
-    number:  /[0-9]/.test(password),
-    special: /[^A-Za-z0-9]/.test(password),
-  }
-  const score = Object.values(checks).filter(Boolean).length
-  return { checks, score }
-}
-
-const PASSWORD_HINTS = [
-  { key: 'length',  label: 'Mínimo 6 caracteres'         },
-  { key: 'upper',   label: 'Al menos una mayúscula (A-Z)' },
-  { key: 'number',  label: 'Al menos un número (0-9)'     },
-  { key: 'special', label: 'Carácter especial (!@#$…)'    },
-]
-
-function PasswordStrengthHint({ password }) {
-  if (!password) return null
-  const { checks, score } = getPasswordStrength(password)
-
-  const barActive =
-    score <= 1 ? 'bg-red-400' :
-    score === 2 ? 'bg-orange-400' :
-    score === 3 ? 'bg-yellow-400' : 'bg-emerald-400'
-
-  const labelText =
-    score <= 1 ? 'Débil' :
-    score === 2 ? 'Regular' :
-    score === 3 ? 'Buena' : 'Fuerte'
-
-  const labelColor =
-    score <= 1 ? 'text-red-500' :
-    score === 2 ? 'text-orange-500' :
-    score === 3 ? 'text-yellow-500' : 'text-emerald-500'
-
-  return (
-    <div className="mt-2 space-y-1.5">
-      <div className="flex items-center gap-2">
-        <div className="flex flex-1 gap-1">
-          {[1, 2, 3, 4].map(i => (
-            <div
-              key={i}
-              className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= score ? barActive : 'bg-slate-200 dark:bg-slate-600'}`}
-            />
-          ))}
-        </div>
-        <span className={`text-[10px] font-semibold ${labelColor}`}>{labelText}</span>
-      </div>
-      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
-        {PASSWORD_HINTS.map(({ key, label }) => (
-          <div key={key} className="flex items-center gap-1">
-            {checks[key]
-              ? <CheckCircle2 size={10} className="text-emerald-500 shrink-0" />
-              : <AlertCircle  size={10} className="text-slate-300 dark:text-slate-600 shrink-0" />
-            }
-            <span className={`text-[10px] ${checks[key] ? 'text-slate-600 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}>
-              {label}
-            </span>
-          </div>
-        ))}
-      </div>
     </div>
   )
 }

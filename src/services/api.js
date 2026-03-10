@@ -43,6 +43,10 @@ export const usersApi = {
   changePassword: (userId, data) =>
     request('PATCH', `/api/v1/users/${userId}/password`, data),
 
+  /** PATCH /api/v1/users/:id/password/admin */
+  adminChangePassword: (userId, data) =>
+    request('PATCH', `/api/v1/users/${userId}/password/admin`, data),
+
   /** DELETE /api/v1/users/:id */
   delete: (userId) =>
     request('DELETE', `/api/v1/users/${userId}`),
