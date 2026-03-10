@@ -1,10 +1,12 @@
 package com.americavirtual.chatMantisBT.service.impl;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import com.americavirtual.chatMantisBT.entity.ChatMessage;
@@ -20,6 +22,24 @@ public class ChatServiceImpl implements ChatService {
 
     @Autowired
     private PendingUserRepository pendingUserRepository;
+
+    @Autowired(required = false)
+    private SimpMessagingTemplate messagingTemplate;
+
+    // Notifica al frontend del estado actualizado del chat
+    private void broadcast(PendingUserResponse response) {
+        if (messagingTemplate == null) return;
+        messagingTemplate.convertAndSend("/topic/chats/" + response.getPersonNumber(), response);
+        messagingTemplate.convertAndSend("/topic/chats", response);
+    }
+
+    // Notifica al frontend que un chat fue cerrado
+    private void broadcastClosed(Long personNumber) {
+        if (messagingTemplate == null) return;
+        Object payload = Map.of("personNumber", personNumber, "state", "closed");
+        messagingTemplate.convertAndSend("/topic/chats/" + personNumber, payload);
+        messagingTemplate.convertAndSend("/topic/chats", payload);
+    }
 
     @Override
     public List<PendingUserResponse> getWaitingUsers() {
@@ -41,7 +61,9 @@ public class ChatServiceImpl implements ChatService {
         PendingUser updatedUser = pendingUserRepository.save(pendingUser);
         EvolutionApi.sendMessage(personNumber, "👨‍💻 ¡Un operador se ha unido al chat!");
 
-        return new PendingUserResponse(updatedUser);
+        PendingUserResponse response = new PendingUserResponse(updatedUser);
+        broadcast(response);
+        return response;
     }
 
     @Override
@@ -55,6 +77,7 @@ public class ChatServiceImpl implements ChatService {
         // Eliminar el usuario pendiente
         pendingUserRepository.deleteById(personNumber);
         EvolutionApi.sendMessage(personNumber, "👨‍💻 ¡El chat ha sido cerrado!");
+        broadcastClosed(personNumber);
     }
 
     @Override
@@ -75,7 +98,9 @@ public class ChatServiceImpl implements ChatService {
         PendingUser savedUser = pendingUserRepository.save(pendingUser);
         EvolutionApi.sendMessage(createChatRequest.getPersonNumber(), "👨‍💻 ¡Un operador se ha unido al chat!");
 
-        return new PendingUserResponse(savedUser);
+        PendingUserResponse response = new PendingUserResponse(savedUser);
+        broadcast(response);
+        return response;
     }
 
     @Override
@@ -92,7 +117,9 @@ public class ChatServiceImpl implements ChatService {
             EvolutionApi.sendMessage(personNumber, request.getContent());
         }
 
-        return new PendingUserResponse(updated);
+        PendingUserResponse response = new PendingUserResponse(updated);
+        broadcast(response);
+        return response;
     }
 
     @Override
@@ -123,6 +150,7 @@ public class ChatServiceImpl implements ChatService {
                 });
 
         pendingUser.getMessages().add(new ChatMessage(String.valueOf(personNumber), text));
-        pendingUserRepository.save(pendingUser);
+        PendingUser saved = pendingUserRepository.save(pendingUser);
+        broadcast(new PendingUserResponse(saved));
     }
 }
