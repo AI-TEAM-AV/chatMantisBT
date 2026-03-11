@@ -1,0 +1,15 @@
+name: Render Keep Alive
+
+on:
+  schedule:
+    # Se ejecuta cada 10 minutos (Render duerme tras 15 min de inactividad)
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # Permite ejecutarlo manualmente para probar
+
+jobs:
+  ping-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit Render Backend
+        run: |
+          curl -I https://chatmantisbt-4dz6.onrender.com/
