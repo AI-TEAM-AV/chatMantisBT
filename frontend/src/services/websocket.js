@@ -1,7 +1,7 @@
 import SockJS from 'sockjs-client';
 import { Client } from '@stomp/stompjs';
 
-const WS_URL = 'http://localhost:8080/ws'; // Cambia el host si es necesario
+const WS_URL = import.meta.env.VITE_API_URL + '/ws'; // Cambia el host si es necesario
 
 class WebSocketService {
   constructor() {
