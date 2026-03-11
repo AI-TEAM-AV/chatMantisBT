@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: chatmantis-backend
+    env: java
+    rootDir: backend/chatMantisBT
+    buildCommand: ./mvnw clean package
+    startCommand: java -jar target/chatMantisBT-0.0.1-SNAPSHOT.jar
+    envVars:
+      - key: PORT
+        value: 8080

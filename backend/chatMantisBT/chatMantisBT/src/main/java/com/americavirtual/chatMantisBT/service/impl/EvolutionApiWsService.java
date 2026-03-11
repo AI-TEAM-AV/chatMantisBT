@@ -1,12 +1,11 @@
-package com.americavirtual.chatMantisBT.service.impl;
+﻿package com.americavirtual.chatMantisBT.service.impl;
 
 import com.americavirtual.chatMantisBT.entity.dto.WebhookPayload;
 import com.americavirtual.chatMantisBT.service.ChatService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.socket.client.IO;
+import io.socket.client.Socket;
 import jakarta.annotation.PreDestroy;
-import org.java_websocket.client.WebSocketClient;
-import org.java_websocket.drafts.Draft_6455;
-import org.java_websocket.handshake.ServerHandshake;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,21 +14,16 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
-import java.util.HashMap;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 /**
- * Connects to the EvolutionAPI WebSocket server to receive WhatsApp events
- * in real-time (as an alternative/complement to the HTTP webhook).
+ * Connects to EvolutionAPI via Socket.IO to receive WhatsApp events in real-time.
  *
  * Required env var:
- *   EVOLUTION_API_WS_URL  – e.g. wss://your-host/ws/Your%20Instance
- *
- * On receiving a "messages.upsert" event, delegates to ChatService just like
- * the WebhookController does.
+ *   EVOLUTION_API_WS_URL  – base HTTP(S) URL, e.g. https://your-host
+ *   EVOLUTION_API_KEY     – API key for authentication
  */
 @Service
 public class EvolutionApiWsService {
@@ -40,9 +34,7 @@ public class EvolutionApiWsService {
     private ChatService chatService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private volatile WebSocketClient wsClient;
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-    private volatile boolean running = true;
+    private volatile Socket socket;
 
     @EventListener(ApplicationReadyEvent.class)
     public void connect() {
@@ -50,45 +42,58 @@ public class EvolutionApiWsService {
         String apiKey = System.getProperty("EVOLUTION_API_KEY");
 
         if (wsUrl == null || wsUrl.isBlank()) {
-            log.warn("EVOLUTION_API_WS_URL not set – EvolutionAPI WebSocket connection skipped");
+            log.warn("EVOLUTION_API_WS_URL not set – EvolutionAPI Socket.IO connection skipped");
             return;
         }
 
+        // socket.io-client requires http/https scheme, not ws/wss
+        String normalizedUrl = wsUrl
+                .replaceFirst("^wss://", "https://")
+                .replaceFirst("^ws://",  "http://")
+                // strip any trailing slash so path concatenation is clean
+                .replaceFirst("/+$", "");
+
+        // Optional: override the Socket.IO mount path (default: /socket.io)
+        String wsPath = System.getProperty("EVOLUTION_API_WS_PATH", "/socket.io");
+
+        log.info("Connecting to EvolutionAPI Socket.IO – base: {} | path: {}", normalizedUrl, wsPath);
+
         try {
-            Map<String, String> headers = new HashMap<>();
-            headers.put("apikey", apiKey);
+            IO.Options opts = IO.Options.builder()
+                    .setTransports(new String[]{"websocket"})
+                    .setPath(wsPath)
+                    .setReconnection(true)
+                    .setReconnectionDelay(5000)
+                    .build();
+            // EvolutionAPI v2: auth via Socket.IO auth map AND HTTP header for fallback
+            opts.auth = Map.of("apikey", apiKey);
+            opts.extraHeaders = Map.of("apikey", List.of(apiKey));
 
-            wsClient = new WebSocketClient(new URI(wsUrl), new Draft_6455(), headers, 30_000) {
+            socket = IO.socket(URI.create(normalizedUrl), opts);
 
-                @Override
-                public void onOpen(ServerHandshake handshake) {
-                    log.info("Connected to EvolutionAPI WebSocket at {}", wsUrl);
+            socket.on(Socket.EVENT_CONNECT, args ->
+                    log.info("Connected to EvolutionAPI Socket.IO at {}", normalizedUrl));
+
+            socket.on(Socket.EVENT_DISCONNECT, args ->
+                    log.warn("Disconnected from EvolutionAPI Socket.IO: {}", Arrays.toString(args)));
+
+            socket.on(Socket.EVENT_CONNECT_ERROR, args -> {
+                if (args.length > 0 && args[0] instanceof Throwable t) {
+                    log.error("EvolutionAPI Socket.IO connection error: {} – cause: {}",
+                            t.getMessage(), t.getCause() != null ? t.getCause().getMessage() : "n/a");
+                } else {
+                    log.error("EvolutionAPI Socket.IO connection error: {}", Arrays.toString(args));
                 }
+            });
 
-                @Override
-                public void onMessage(String message) {
-                    handleMessage(message);
-                }
+            socket.on("messages.upsert", args -> {
+                if (args.length > 0) handleMessage(args[0].toString());
+            });
 
-                @Override
-                public void onClose(int code, String reason, boolean remote) {
-                    log.warn("EvolutionAPI WebSocket closed: code={}, reason={}, remote={}", code, reason, remote);
-                    if (running) {
-                        scheduleReconnect();
-                    }
-                }
-
-                @Override
-                public void onError(Exception ex) {
-                    log.error("EvolutionAPI WebSocket error: {}", ex.getMessage());
-                }
-            };
-
-            wsClient.connect();
+            socket.connect();
 
         } catch (Exception e) {
-            log.error("Failed to connect to EvolutionAPI WebSocket", e);
-            scheduleReconnect();
+            log.error("Failed to connect to EvolutionAPI Socket.IO at {}", normalizedUrl, e);
         }
     }
 
@@ -96,7 +101,6 @@ public class EvolutionApiWsService {
         try {
             WebhookPayload payload = objectMapper.readValue(raw, WebhookPayload.class);
 
-            if (!"messages.upsert".equals(payload.getEvent())) return;
             if (payload.getData() == null || payload.getData().getKey() == null) return;
             if (payload.getData().getKey().isFromMe()) return;
 
@@ -118,25 +122,15 @@ public class EvolutionApiWsService {
             log.debug("WS: processed message from {} ({})", personNumber, name);
 
         } catch (Exception e) {
-            log.error("Error processing EvolutionAPI WebSocket message", e);
+            log.error("Error processing EvolutionAPI Socket.IO message", e);
         }
-    }
-
-    private void scheduleReconnect() {
-        scheduler.schedule(() -> {
-            if (running) {
-                log.info("Reconnecting to EvolutionAPI WebSocket...");
-                connect();
-            }
-        }, 5, TimeUnit.SECONDS);
     }
 
     @PreDestroy
     public void disconnect() {
-        running = false;
-        if (wsClient != null && wsClient.isOpen()) {
-            wsClient.close();
+        if (socket != null) {
+            socket.disconnect();
+            socket.close();
         }
-        scheduler.shutdownNow();
     }
 }

@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef } f
 import { v4 as uuidv4 } from 'uuid'
 import { messageStorage } from '../services/storage.js'
 import { chatsApi } from '../services/api.js'
+import websocketService from '../services/websocket.js'
 
 /**
  * Maps a PendingUserResponse from the backend to a frontend conversation object.
@@ -58,6 +59,29 @@ export function ChatProvider({ children }) {
   const isFirstLoad = useRef(true)
   const activeIdRef = useRef(activeId)
   useEffect(() => { activeIdRef.current = activeId }, [activeId])
+
+  // WebSocket: handle incoming messages
+  useEffect(() => {
+    websocketService.connect((msg) => {
+      // msg.body is JSON string
+      try {
+        const payload = JSON.parse(msg.body);
+        // payload: { sender, content, timestamp, personNumber }
+        if (payload && payload.personNumber && payload.content) {
+          receiveMessage(String(payload.personNumber), payload.content, payload.sender);
+        }
+      } catch (e) {
+        console.warn('WebSocket message parse error', e);
+      }
+    });
+    // Subscribe to all chats
+    websocketService.subscribe('/topic/chats', (payload) => {
+      if (payload && payload.personNumber && payload.content) {
+        receiveMessage(String(payload.personNumber), payload.content, payload.sender);
+      }
+    });
+    return () => websocketService.disconnect();
+  }, []);
 
   async function loadChats() {
     setLoadingChats(true)
