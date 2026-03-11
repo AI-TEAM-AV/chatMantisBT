@@ -16,6 +16,7 @@
     "date-fns": "^4.1.0",
     "lucide-react": "^0.469.0",
     "uuid": "^11.0.3"
+    "sockjs-client": "^1.6.1",
   },
   "devDependencies": {
     "@types/react": "^18.3.18",
