@@ -21,11 +21,14 @@ const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [operator, setOperator] = useState(null)
+  const [token, setToken] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const saved = authStorage.getOperator()
+    const savedToken = authStorage.getToken()
     if (saved) setOperator(saved)
+    if (savedToken) setToken(savedToken)
     setLoading(false)
   }, [])
 
@@ -34,7 +37,9 @@ export function AuthProvider({ children }) {
       const data = await usersApi.login(email, password)
       const safe = mapUserResponse(data)
       authStorage.setOperator(safe)
+      authStorage.setToken(data.token)
       setOperator(safe)
+      setToken(data.token)
       return { ok: true }
     } catch (err) {
       return { ok: false, error: 'Email o contraseña incorrectos.' }
@@ -44,6 +49,7 @@ export function AuthProvider({ children }) {
   function logout() {
     authStorage.clear()
     setOperator(null)
+    setToken(null)
   }
 
   const refreshOperator = useCallback(async () => {
@@ -58,7 +64,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ operator, loading, login, logout, refreshOperator }}>
+    <AuthContext.Provider value={{ operator, token, loading, login, logout, refreshOperator }}>
       {children}
     </AuthContext.Provider>
   )

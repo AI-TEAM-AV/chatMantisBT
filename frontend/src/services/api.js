@@ -1,9 +1,14 @@
 const BASE_URL = import.meta.env.VITE_API_URL;
 
+function getAuthHeader() {
+  const token = localStorage.getItem('helpdesk_token')
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 async function request(method, path, body) {
   const opts = {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
   }
   if (body !== undefined) opts.body = JSON.stringify(body)
 

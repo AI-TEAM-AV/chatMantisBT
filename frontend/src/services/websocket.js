@@ -11,10 +11,12 @@ class WebSocketService {
   }
 
   connect(onMessage) {
+    const token = localStorage.getItem('helpdesk_token')
     this.client = new Client({
       brokerURL: WS_URL,
       webSocketFactory: () => new SockJS(WS_URL),
       reconnectDelay: 5000,
+      connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
       onConnect: () => {
         this.connected = true;
       },

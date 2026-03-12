@@ -4,6 +4,7 @@ const KEYS = {
   OPERATOR: 'helpdesk_operator',
   OPERATORS_LIST: 'helpdesk_operators_list',
   INITIALIZED: 'helpdesk_initialized_v3',
+  TOKEN: 'helpdesk_token',
 }
 
 export const storage = {
@@ -80,8 +81,17 @@ export const authStorage = {
     storage.set(KEYS.OPERATOR, operator)
   },
 
+  getToken() {
+    return localStorage.getItem(KEYS.TOKEN)
+  },
+
+  setToken(token) {
+    localStorage.setItem(KEYS.TOKEN, token)
+  },
+
   clear() {
     storage.remove(KEYS.OPERATOR)
+    localStorage.removeItem(KEYS.TOKEN)
   },
 }
 

@@ -15,6 +15,7 @@ public class UserResponse {
     private String name;
     private String surname;
     private Role role;
+    private String token;
 
     public UserResponse(User user) {
         this.id = user.getId();
@@ -24,3 +25,4 @@ public class UserResponse {
         this.role = user.getRole();
     }
 }
+

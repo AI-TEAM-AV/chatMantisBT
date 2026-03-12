@@ -15,6 +15,7 @@ import com.americavirtual.chatMantisBT.entity.dto.LoginRequest;
 import com.americavirtual.chatMantisBT.entity.dto.UserRequest;
 import com.americavirtual.chatMantisBT.entity.dto.UserResponse;
 import com.americavirtual.chatMantisBT.repository.UserRepository;
+import com.americavirtual.chatMantisBT.service.JwtService;
 import com.americavirtual.chatMantisBT.service.UserService;
 
 @Service
@@ -26,6 +27,9 @@ public class UserServiceImpl implements UserService {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private JwtService jwtService;
 
     @Override
     public UserResponse createUser(UserRequest userRequest) {
@@ -58,7 +62,10 @@ public class UserServiceImpl implements UserService {
             throw new IllegalArgumentException("Invalid email or password");
         }
 
-        return new UserResponse(user);
+        String token = jwtService.generateToken(user.getEmail());
+        UserResponse response = new UserResponse(user);
+        response.setToken(token);
+        return response;
     }
 
     @Override
