@@ -139,18 +139,11 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public void receiveWebhookMessage(Long personNumber, String name, String text) {
-        PendingUser pendingUser = pendingUserRepository.findById(personNumber)
-                .orElseGet(() -> {
-                    PendingUser newUser = new PendingUser();
-                    newUser.setPersonNumber(personNumber);
-                    newUser.setName(name != null ? name : String.valueOf(personNumber));
-                    newUser.setProblematic(text);
-                    newUser.setState("waiting");
-                    return newUser;
-                });
-
-        pendingUser.getMessages().add(new ChatMessage(String.valueOf(personNumber), text));
-        PendingUser saved = pendingUserRepository.save(pendingUser);
-        broadcast(new PendingUserResponse(saved));
+        PendingUser pendingUser = pendingUserRepository.findById(personNumber).orElse(null);
+        if (pendingUser != null) {
+            pendingUser.getMessages().add(new ChatMessage(String.valueOf(personNumber), text));
+            PendingUser saved = pendingUserRepository.save(pendingUser);
+            broadcast(new PendingUserResponse(saved));
+        }
     }
 }
