@@ -6,7 +6,7 @@ import { useToast } from '../context/ToastContext.jsx'
 import PasswordStrengthHint from './PasswordStrengthHint.jsx'
 
 export default function ChangePasswordModal({ isOpen, onClose }) {
-  const { operator } = useAuth()
+  const { operator, logout } = useAuth()
   const { showToast } = useToast()
 
   const [currentPassword, setCurrentPassword] = useState('')
@@ -55,8 +55,9 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
     setLoading(true)
     try {
       await usersApi.changePassword(operator.id, { currentPassword, newPassword })
-      showToast('Contraseña actualizada correctamente.', 'success')
       onClose()
+      showToast('Contraseña actualizada. Iniciá sesión nuevamente.', 'success')
+      logout()
     } catch (err) {
       setError(err.message || 'No se pudo actualizar la contraseña. Verificá la contraseña actual.')
     } finally {

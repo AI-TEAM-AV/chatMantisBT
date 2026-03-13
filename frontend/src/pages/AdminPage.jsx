@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import {
   MessageSquare, LogOut, Moon, Sun, UserPlus, Trash2,
   Eye, EyeOff, AlertCircle, Shield, Users, X,
-  KeyRound, ChevronDown
+  KeyRound, ChevronDown, CheckCircle2
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useTheme } from '../context/ThemeContext.jsx'
@@ -314,6 +314,7 @@ export default function AdminPage() {
                   <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">{op.email}</p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
+                  {op.id !== operator?.id && (
                   <button
                     onClick={() => setResetTarget(op)}
                     title="Restablecer contraseña"
@@ -321,6 +322,7 @@ export default function AdminPage() {
                   >
                     <KeyRound size={14} />
                   </button>
+                  )}
                   {op.id !== operator?.id && (
                     <button
                       onClick={() => setConfirmDelete(op)}
