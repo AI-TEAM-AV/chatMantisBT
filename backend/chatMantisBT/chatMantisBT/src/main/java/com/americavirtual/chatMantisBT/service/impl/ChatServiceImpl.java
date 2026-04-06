@@ -77,7 +77,7 @@ public class ChatServiceImpl implements ChatService {
         // Eliminar el usuario pendiente
         pendingUserRepository.deleteById(personNumber);
 
-        EvolutionApi.sendMessage(personNumber, "👨‍💻 ¡El chat ha sido cerrado!");
+        // EvolutionApi.sendMessage(personNumber, "👨‍💻 ¡El chat ha sido cerrado!");
         broadcastClosed(personNumber);
     }
 
