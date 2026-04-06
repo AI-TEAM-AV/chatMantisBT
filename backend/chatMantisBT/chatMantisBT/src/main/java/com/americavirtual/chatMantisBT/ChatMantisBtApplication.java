@@ -23,16 +23,26 @@ public class ChatMantisBtApplication {
 
 	/**
 	 * Resuelve el directorio donde se encuentra el .env.
-	 * Cuando la app se ejecuta desde la raíz del repo (comportamiento del IDE),
-	 * el .env está en chatMantisBT/chatMantisBT/.
-	 * Cuando se ejecuta desde dentro del módulo Maven, está en el directorio actual.
+	 * Intenta múltiples ubicaciones en orden:
+	 * 1. src/.env (ubicación actual cuando corre desde el IDE)
+	 * 2. chatMantisBT/chatMantisBT/.env (desde la raíz del repo)
+	 * 3. ./.env (directorio de trabajo actual - ejecución desde Maven)
 	 */
 	private static String resolveEnvDirectory() {
-		java.io.File fromRoot = new java.io.File("chatMantisBT/chatMantisBT/.env");
-		if (fromRoot.exists()) {
-			return "chatMantisBT/chatMantisBT";
+		// Check src/ directory (common when running from IDE in project root)
+		java.io.File srcEnv = new java.io.File("src/.env");
+		if (srcEnv.exists()) {
+			return "src";
 		}
-		return "."; // directorio de trabajo actual (ejecución desde dentro del módulo)
+		
+		// Check nested module structure (from repo root)
+		java.io.File nestedEnv = new java.io.File("chatMantisBT/chatMantisBT/src/.env");
+		if (nestedEnv.exists()) {
+			return "chatMantisBT/chatMantisBT/src";
+		}
+		
+		// Fallback to current directory
+		return ".";
 	}
 
 }
