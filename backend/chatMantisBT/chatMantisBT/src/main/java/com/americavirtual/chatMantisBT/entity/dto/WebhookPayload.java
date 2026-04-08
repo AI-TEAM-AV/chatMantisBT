@@ -61,6 +61,9 @@ public class WebhookPayload {
         private JsonNode imageMessage;
         private JsonNode documentMessage;
         private JsonNode documentWithCaptionMessage;
+        private String base64;
+        private String mediaUrl;
+        private String caption;
         private String images;
         private String fileName;
         private String mimetype;
@@ -88,6 +91,10 @@ public class WebhookPayload {
             return msg.getExtendedTextMessage().getText();
         }
 
+        if (msg.getCaption() != null && !msg.getCaption().isBlank()) {
+            return msg.getCaption();
+        }
+
         JsonNode documentWithCaption = msg.getDocumentWithCaptionMessage();
         if (documentWithCaption != null) {
             String caption = readNestedText(documentWithCaption, "message", "documentMessage", "caption");
@@ -112,10 +119,19 @@ public class WebhookPayload {
 
         Message msg = data.getMessage();
         if (msg != null) {
+            if (isImageType(data.getMessageType())) {
+                if (msg.getBase64() != null && !msg.getBase64().isBlank()) {
+                    return msg.getBase64();
+                }
+                if (msg.getMediaUrl() != null && !msg.getMediaUrl().isBlank()) {
+                    return msg.getMediaUrl();
+                }
+            }
+
             if (msg.getImages() != null && !msg.getImages().isBlank()) {
                 return msg.getImages();
             }
-            String fromImageMessage = readText(msg.getImageMessage(), "images", "base64");
+            String fromImageMessage = readText(msg.getImageMessage(), "images", "base64", "url");
             if (fromImageMessage != null && !fromImageMessage.isBlank()) {
                 return fromImageMessage;
             }
@@ -129,6 +145,15 @@ public class WebhookPayload {
 
         Message msg = data.getMessage();
         if (msg != null) {
+            if (isDocumentType(data.getMessageType())) {
+                if (msg.getBase64() != null && !msg.getBase64().isBlank()) {
+                    return msg.getBase64();
+                }
+                if (msg.getMediaUrl() != null && !msg.getMediaUrl().isBlank()) {
+                    return msg.getMediaUrl();
+                }
+            }
+
             if (msg.getDocument() != null && !msg.getDocument().isBlank()) {
                 return msg.getDocument();
             }
@@ -136,6 +161,11 @@ public class WebhookPayload {
             String directDocument = readText(msg.getDocumentMessage(), "document", "base64");
             if (directDocument != null && !directDocument.isBlank()) {
                 return directDocument;
+            }
+
+            String directDocumentUrl = readText(msg.getDocumentMessage(), "url");
+            if (directDocumentUrl != null && !directDocumentUrl.isBlank()) {
+                return directDocumentUrl;
             }
 
             String withCaptionDocument = readNestedText(
@@ -150,6 +180,13 @@ public class WebhookPayload {
                     "message", "documentMessage", "base64");
             if (withCaptionBase64 != null && !withCaptionBase64.isBlank()) {
                 return withCaptionBase64;
+            }
+
+            String withCaptionUrl = readNestedText(
+                    msg.getDocumentWithCaptionMessage(),
+                    "message", "documentMessage", "url");
+            if (withCaptionUrl != null && !withCaptionUrl.isBlank()) {
+                return withCaptionUrl;
             }
         }
 
@@ -175,6 +212,10 @@ public class WebhookPayload {
                     "message", "documentMessage", "fileName");
             if (withCaptionFileName != null && !withCaptionFileName.isBlank()) {
                 return withCaptionFileName;
+            }
+
+            if (isImageType(data.getMessageType())) {
+                return "image.jpg";
             }
         }
 
@@ -206,9 +247,27 @@ public class WebhookPayload {
             if (imageMime != null && !imageMime.isBlank()) {
                 return imageMime;
             }
+
+            if (isImageType(data.getMessageType())) {
+                return "image/jpeg";
+            }
+
+            if (isDocumentType(data.getMessageType())) {
+                return "application/octet-stream";
+            }
         }
 
         return data.getMimetype();
+    }
+
+    private boolean isImageType(String messageType) {
+        return messageType != null && messageType.toLowerCase().contains("imagemessage");
+    }
+
+    private boolean isDocumentType(String messageType) {
+        return messageType != null && (
+                messageType.toLowerCase().contains("documentmessage")
+                        || messageType.toLowerCase().contains("documentwithcaptionmessage"));
     }
 
     private String readText(JsonNode node, String... candidates) {

@@ -4,6 +4,17 @@ import { messageStorage } from '../services/storage.js'
 import { chatsApi } from '../services/api.js'
 import websocketService from '../services/websocket.js'
 
+function isBlank(value) {
+  return value == null || String(value).trim() === ''
+}
+
+function buildFallbackText({ text, imageBase64, documentBase64, fileName }) {
+  if (!isBlank(text)) return text
+  if (!isBlank(imageBase64)) return 'Imagen adjunta'
+  if (!isBlank(documentBase64)) return `Archivo adjunto: ${fileName || 'documento'}`
+  return ''
+}
+
 /**
  * Maps a PendingUserResponse from the backend to a frontend conversation object.
  *   Backend state: "waiting" → frontend status: "pending"
@@ -46,20 +57,18 @@ function mapPendingToConversation(pending) {
  */
 function mapBackendMessage(conversationId, msg) {
   const isOperator = msg.sender === 'operator'
-  const hasImage = Boolean(msg.images)
-  const hasDocument = Boolean(msg.document)
-  const fallbackText = hasImage
-    ? 'Imagen adjunta'
-    : hasDocument
-      ? `Archivo adjunto: ${msg.fileName || 'documento'}`
-      : ''
 
   return {
     id: uuidv4(),
     conversationId,
     sender: isOperator ? 'operator' : 'user',
     senderName: msg.sender,
-    text: msg.content || fallbackText,
+    text: buildFallbackText({
+      text: msg.content,
+      imageBase64: msg.images,
+      documentBase64: msg.document,
+      fileName: msg.fileName,
+    }),
     createdAt: msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now(),
     imageBase64: msg.images || null,
     fileName: msg.fileName || null,
@@ -84,30 +93,7 @@ export function ChatProvider({ children }) {
   const activeIdRef = useRef(activeId)
   useEffect(() => { activeIdRef.current = activeId }, [activeId])
 
-  // WebSocket: handle incoming messages
-  useEffect(() => {
-    websocketService.connect((msg) => {
-      // msg.body is JSON string
-      try {
-        const payload = JSON.parse(msg.body);
-        // payload: { sender, content, timestamp, personNumber }
-        if (payload && payload.personNumber && payload.content) {
-          receiveMessage(String(payload.personNumber), payload.content, payload.sender);
-        }
-      } catch (e) {
-        console.warn('WebSocket message parse error', e);
-      }
-    });
-    // Subscribe to all chats
-    websocketService.subscribe('/topic/chats', (payload) => {
-      if (payload && payload.personNumber && payload.content) {
-        receiveMessage(String(payload.personNumber), payload.content, payload.sender);
-      }
-    });
-    return () => websocketService.disconnect();
-  }, []);
-
-  async function loadChats() {
+  const loadChats = useCallback(async () => {
     setLoadingChats(true)
     setChatError(null)
     try {
@@ -163,13 +149,110 @@ export function ChatProvider({ children }) {
     } finally {
       setLoadingChats(false)
     }
-  }
+  }, [])
+
+  const receiveSocketMessage = useCallback((payload) => {
+    if (!payload || !payload.personNumber) return
+
+    const conversationId = String(payload.personNumber)
+    const message = {
+      id: uuidv4(),
+      conversationId,
+      sender: payload.sender === 'operator' ? 'operator' : 'user',
+      senderName: payload.sender,
+      text: buildFallbackText({
+        text: payload.content,
+        imageBase64: payload.images,
+        documentBase64: payload.document,
+        fileName: payload.fileName,
+      }),
+      createdAt: payload.timestamp ? new Date(payload.timestamp).getTime() : Date.now(),
+      imageBase64: payload.images || null,
+      fileName: payload.fileName || null,
+      mimeType: payload.mimetype || null,
+      documentBase64: payload.document || null,
+    }
+
+    messageStorage.add(conversationId, message)
+    setMessages(prev => ({
+      ...prev,
+      [conversationId]: [...(prev[conversationId] || []), message],
+    }))
+
+    setConversations(prev => {
+      const existing = prev.find(c => c.id === conversationId)
+      const nextLastMessage = message.text || existing?.lastMessage || ''
+
+      if (!existing) {
+        return [
+          {
+            id: conversationId,
+            userId: conversationId,
+            userName: payload.sender === 'operator' ? `Usuario ${conversationId}` : (payload.sender || `Usuario ${conversationId}`),
+            subject: nextLastMessage || 'Sin asunto',
+            status: 'open',
+            priority: 'medium',
+            lastMessage: nextLastMessage,
+            lastMessageAt: message.createdAt,
+            unread: activeIdRef.current === conversationId ? 0 : 1,
+            createdAt: message.createdAt,
+            imageBase64: message.imageBase64,
+            fileName: message.fileName,
+            mimeType: message.mimeType,
+            documentBase64: message.documentBase64,
+          },
+          ...prev,
+        ]
+      }
+
+      return prev.map(c =>
+        c.id === conversationId
+          ? {
+              ...c,
+              lastMessage: nextLastMessage,
+              lastMessageAt: message.createdAt,
+              unread: activeIdRef.current === conversationId ? 0 : (c.unread || 0) + 1,
+            }
+          : c
+      )
+    })
+  }, [])
+
+  // WebSocket: handle incoming messages and state updates.
+  useEffect(() => {
+    websocketService.connect()
+
+    websocketService.subscribe('/topic/chats/messages', (payload) => {
+      receiveSocketMessage(payload)
+    })
+
+    websocketService.subscribe('/topic/chats', (payload) => {
+      if (payload?.state === 'closed' && payload?.personNumber) {
+        const convId = String(payload.personNumber)
+        setConversations(prev => prev.filter(c => c.id !== convId))
+        setMessages(prev => {
+          const { [convId]: _removed, ...rest } = prev
+          messageStorage.deleteByConversation(convId)
+          return rest
+        })
+        setActiveId(prev => (prev === convId ? null : prev))
+        return
+      }
+
+      // For updates like startChat/new chat metadata, refresh from source of truth.
+      if (payload?.personNumber) {
+        loadChats()
+      }
+    })
+
+    return () => websocketService.disconnect()
+  }, [loadChats, receiveSocketMessage])
 
   useEffect(() => {
     loadChats()
     const interval = setInterval(loadChats, 5000)
     return () => clearInterval(interval)
-  }, [])
+  }, [loadChats])
 
   const activeConversation = conversations.find(c => c.id === activeId) || null
 
@@ -191,74 +274,32 @@ export function ChatProvider({ children }) {
   }, [])
 
   /**
-   * Sends an operator message: updates local state optimistically
-   * and persists to the backend via POST /api/v1/chats/{personNumber}/messages.
-   * sender field sent to backend is literally "operator" so it can be distinguished on reload.
+   * Sends an operator message (text and/or attachment) and persists it to backend.
+   * Delivery to UI happens through websocket broadcast and periodic sync.
    */
-  const sendMessage = useCallback(async (conversationId, text, operatorName) => {
-    const trimmed = text.trim()
-    if (!trimmed) return
+  const sendMessage = useCallback(async (conversationId, payload) => {
+    const trimmed = payload?.text?.trim() || ''
+    const imageBase64 = payload?.imageBase64 || null
+    const documentBase64 = payload?.documentBase64 || null
+    const fileName = payload?.fileName || null
+    const mimeType = payload?.mimeType || null
+    const hasAttachment = Boolean(imageBase64 || documentBase64)
 
-    const message = {
-      id: uuidv4(),
-      conversationId,
-      sender: 'operator',
-      senderName: operatorName,
-      text: trimmed,
-      createdAt: Date.now(),
-    }
+    if (!trimmed && !hasAttachment) return
 
-    // Optimistic local update
-    messageStorage.add(conversationId, message)
-    setMessages(prev => ({
-      ...prev,
-      [conversationId]: [...(prev[conversationId] || []), message],
-    }))
-    setConversations(prev =>
-      prev.map(c =>
-        c.id === conversationId
-          ? { ...c, lastMessage: trimmed, lastMessageAt: message.createdAt }
-          : c
-      )
-    )
-
-    // Persist to backend (fire-and-forget: UI is already updated)
     try {
-      await chatsApi.sendMessage(conversationId, { sender: 'operator', content: trimmed })
+      await chatsApi.sendMessage(conversationId, {
+        sender: 'operator',
+        content: trimmed,
+        images: imageBase64,
+        fileName,
+        mimetype: mimeType,
+        document: documentBase64,
+      })
     } catch {
       console.warn('No se pudo guardar el mensaje en el servidor.')
     }
   }, [])
-
-  const receiveMessage = useCallback((conversationId, text, userName) => {
-    const message = {
-      id: uuidv4(),
-      conversationId,
-      sender: 'user',
-      senderName: userName,
-      text,
-      createdAt: Date.now(),
-    }
-
-    messageStorage.add(conversationId, message)
-    setMessages(prev => ({
-      ...prev,
-      [conversationId]: [...(prev[conversationId] || []), message],
-    }))
-
-    setConversations(prev =>
-      prev.map(c =>
-        c.id === conversationId
-          ? {
-              ...c,
-              lastMessage: text,
-              lastMessageAt: message.createdAt,
-              unread: activeId === conversationId ? 0 : (c.unread || 0) + 1,
-            }
-          : c
-      )
-    )
-  }, [activeId])
 
   const updateStatus = useCallback((conversationId, status) => {
     setConversations(prev =>
@@ -292,7 +333,6 @@ export function ChatProvider({ children }) {
       setSearchQuery,
       selectConversation,
       sendMessage,
-      receiveMessage,
       updateStatus,
       deleteConversation,
       getMessages,

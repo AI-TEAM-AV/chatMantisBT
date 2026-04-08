@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import com.americavirtual.chatMantisBT.entity.ChatMessage;
 import com.americavirtual.chatMantisBT.entity.PendingUser;
 import com.americavirtual.chatMantisBT.entity.dto.ChatMessageRequest;
+import com.americavirtual.chatMantisBT.entity.dto.ChatSocketMessageResponse;
 import com.americavirtual.chatMantisBT.entity.dto.CreateChatRequest;
 import com.americavirtual.chatMantisBT.entity.dto.PendingUserResponse;
 import com.americavirtual.chatMantisBT.repository.PendingUserRepository;
@@ -41,6 +42,13 @@ public class ChatServiceImpl implements ChatService {
         messagingTemplate.convertAndSend("/topic/chats", payload);
     }
 
+    private void broadcastMessage(Long personNumber, ChatMessage message) {
+        if (messagingTemplate == null || message == null) return;
+        ChatSocketMessageResponse payload = new ChatSocketMessageResponse(personNumber, message);
+        messagingTemplate.convertAndSend("/topic/chats/" + personNumber + "/messages", payload);
+        messagingTemplate.convertAndSend("/topic/chats/messages", payload);
+    }
+
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
     }
@@ -51,6 +59,29 @@ public class ChatServiceImpl implements ChatService {
 
     private boolean hasAnyAttachment(String images, String document) {
         return !isBlank(images) || !isBlank(document);
+    }
+
+    private void sendOutboundMessageToEvolution(Long personNumber, ChatMessageRequest request) {
+        if (!"operator".equals(request.getSender())) {
+            return;
+        }
+
+        if (!hasAnyAttachment(request.getImages(), request.getDocument())) {
+            if (!isBlank(request.getContent())) {
+                EvolutionApi.sendMessage(personNumber, request.getContent());
+            }
+            return;
+        }
+
+        String mediaType = !isBlank(request.getImages()) ? "image" : "document";
+        String mediaBase64 = !isBlank(request.getImages()) ? request.getImages() : request.getDocument();
+        EvolutionApi.sendMedia(
+                personNumber,
+                mediaType,
+                mediaBase64,
+                request.getFileName(),
+                request.getContent(),
+                request.getMimetype());
     }
 
     @Override
@@ -130,21 +161,21 @@ public class ChatServiceImpl implements ChatService {
             throw new IllegalArgumentException("Message content cannot be empty when no attachment is provided");
         }
 
-        pendingUser.getMessages().add(new ChatMessage(
+        ChatMessage outboundMessage = new ChatMessage(
                 request.getSender(),
                 request.getContent(),
                 request.getImages(),
                 request.getFileName(),
                 request.getMimetype(),
-                request.getDocument()));
+            request.getDocument());
+
+        pendingUser.getMessages().add(outboundMessage);
         PendingUser updated = pendingUserRepository.save(pendingUser);
 
-        // Enviar mensaje a Evolution API si es operador
-        if(request.getSender().equals("operator") && !isBlank(request.getContent())) {
-            EvolutionApi.sendMessage(personNumber, request.getContent());
-        }
+        sendOutboundMessageToEvolution(personNumber, request);
 
         PendingUserResponse response = new PendingUserResponse(updated);
+        broadcastMessage(personNumber, outboundMessage);
         broadcast(response);
         return response;
     }
@@ -175,6 +206,7 @@ public class ChatServiceImpl implements ChatService {
             String document) {
         PendingUser pendingUser = pendingUserRepository.findById(personNumber).orElse(null);
         boolean hasMessageContent = hasAnyMessageContent(text, images, document);
+        ChatMessage inboundMessage = null;
 
         if (pendingUser == null) {
             pendingUser = new PendingUser();
@@ -208,13 +240,14 @@ public class ChatServiceImpl implements ChatService {
         }
 
         if (hasMessageContent) {
-            pendingUser.getMessages().add(new ChatMessage(
+            inboundMessage = new ChatMessage(
                     String.valueOf(personNumber),
                     text,
                     images,
                     fileName,
                     mimetype,
-                    document));
+                document);
+            pendingUser.getMessages().add(inboundMessage);
         }
 
         PendingUser saved = pendingUserRepository.save(pendingUser);
@@ -228,6 +261,9 @@ public class ChatServiceImpl implements ChatService {
             saved = pendingUserRepository.save(saved);
         }
 
+        if (hasMessageContent) {
+            broadcastMessage(personNumber, inboundMessage);
+        }
         broadcast(new PendingUserResponse(saved));
     }
 }

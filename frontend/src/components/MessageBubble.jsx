@@ -3,6 +3,10 @@ import { getInitials } from '../utils/helpers.js'
 
 function toDataUrl(base64, fallbackMime = 'application/octet-stream') {
   if (!base64) return null
+  if (base64.startsWith('http://') || base64.startsWith('https://')) {
+    if (base64.includes('mmg.whatsapp.net')) return null
+    return base64
+  }
   if (base64.startsWith('data:')) return base64
   return `data:${fallbackMime};base64,${base64}`
 }
