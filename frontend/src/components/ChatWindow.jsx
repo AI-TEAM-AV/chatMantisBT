@@ -200,21 +200,27 @@ export default function ChatWindow() {
 
   const renderMessages = () => {
     const items = []
+    const initialMessage = {
+      id: `initial-${activeConversation.id}`,
+      sender: 'user',
+      senderName: userName,
+      text: activeConversation.lastMessage,
+      createdAt: activeConversation.createdAt,
+      imageBase64: activeConversation.imageBase64,
+      fileName: activeConversation.fileName,
+      mimeType: activeConversation.mimeType,
+      documentBase64: activeConversation.documentBase64,
+    }
 
-    // If no messages yet, show the Redis-backed first message even after the chat is opened.
-    if (messages.length === 0 && hasInitialMessage) {
-      const initialMessage = {
-        id: `initial-${activeConversation.id}`,
-        sender: 'user',
-        senderName: userName,
-        text: activeConversation.lastMessage,
-        createdAt: activeConversation.createdAt,
-        imageBase64: activeConversation.imageBase64,
-        fileName: activeConversation.fileName,
-        mimeType: activeConversation.mimeType,
-        documentBase64: activeConversation.documentBase64,
-      }
+    const alreadyInHistory = messages.some(msg => (
+      msg.sender !== 'operator' &&
+      (msg.text || '') === (initialMessage.text || '') &&
+      (msg.imageBase64 || '') === (initialMessage.imageBase64 || '') &&
+      (msg.documentBase64 || '') === (initialMessage.documentBase64 || '')
+    ))
 
+    // Keep the Redis-backed first message visible in the chat timeline.
+    if (hasInitialMessage && !alreadyInHistory) {
       items.push(
         <MessageBubble
           key={initialMessage.id}
@@ -225,7 +231,6 @@ export default function ChatWindow() {
           userName={userName}
         />
       )
-      return items
     }
 
     for (let i = 0; i < messages.length; i++) {
