@@ -15,4 +15,12 @@ public class CreateChatRequest {
     private String name;
     
     private String problematic;
+
+    private String images;
+
+    private String fileName;
+
+    private String mimetype;
+
+    private String document;
 }

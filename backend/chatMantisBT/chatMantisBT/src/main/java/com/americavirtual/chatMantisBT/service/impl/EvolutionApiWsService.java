@@ -112,14 +112,36 @@ public class EvolutionApiWsService {
             }
 
             String text = payload.extractText();
-            if (text == null || text.isBlank()) {
-                log.debug("WS: ignoring non-text message from {}", personNumber);
+            String images = payload.extractImageBase64();
+            String fileName = payload.extractFileName();
+            String mimetype = payload.extractMimetype();
+            String document = payload.extractDocumentBase64();
+
+            boolean hasText = text != null && !text.isBlank();
+            boolean hasImage = images != null && !images.isBlank();
+            boolean hasDocument = document != null && !document.isBlank();
+
+            if (!hasText && !hasImage && !hasDocument) {
+                log.debug("WS: ignoring message without text/attachments from {}", personNumber);
                 return;
             }
 
             String name = payload.getData().getPushName();
-            chatService.receiveWebhookMessage(personNumber, name, text);
-            log.debug("WS: processed message from {} ({})", personNumber, name);
+            chatService.receiveWebhookMessage(
+                    personNumber,
+                    name,
+                    text,
+                    images,
+                    fileName,
+                    mimetype,
+                    document);
+            log.debug(
+                    "WS: processed message from {} ({}) [text={}, image={}, document={}]",
+                    personNumber,
+                    name,
+                    hasText,
+                    hasImage,
+                    hasDocument);
 
         } catch (Exception e) {
             log.error("Error processing EvolutionAPI Socket.IO message", e);

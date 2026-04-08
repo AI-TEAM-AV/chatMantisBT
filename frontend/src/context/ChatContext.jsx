@@ -10,6 +10,14 @@ import websocketService from '../services/websocket.js'
  *   Backend state: "operator" → frontend status: "open"
  */
 function mapPendingToConversation(pending) {
+  const hasImage = Boolean(pending.images)
+  const hasDocument = Boolean(pending.document)
+  const fallbackLastMessage = hasImage
+    ? 'Imagen adjunta'
+    : hasDocument
+      ? `Archivo adjunto: ${pending.fileName || 'documento'}`
+      : ''
+
   return {
     id: String(pending.personNumber),
     userId: String(pending.personNumber),
@@ -17,10 +25,14 @@ function mapPendingToConversation(pending) {
     subject: pending.problematic || 'Sin asunto',
     status: pending.state === 'waiting' ? 'pending' : 'open',
     priority: 'medium',
-    lastMessage: pending.problematic || '',
+    lastMessage: pending.problematic || fallbackLastMessage,
     lastMessageAt: Date.now(),
     unread: 0,
     createdAt: Date.now(),
+    imageBase64: pending.images || null,
+    fileName: pending.fileName || null,
+    mimeType: pending.mimetype || null,
+    documentBase64: pending.document || null,
   }
 }
 
@@ -34,13 +46,25 @@ function mapPendingToConversation(pending) {
  */
 function mapBackendMessage(conversationId, msg) {
   const isOperator = msg.sender === 'operator'
+  const hasImage = Boolean(msg.images)
+  const hasDocument = Boolean(msg.document)
+  const fallbackText = hasImage
+    ? 'Imagen adjunta'
+    : hasDocument
+      ? `Archivo adjunto: ${msg.fileName || 'documento'}`
+      : ''
+
   return {
     id: uuidv4(),
     conversationId,
     sender: isOperator ? 'operator' : 'user',
     senderName: msg.sender,
-    text: msg.content,
+    text: msg.content || fallbackText,
     createdAt: msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now(),
+    imageBase64: msg.images || null,
+    fileName: msg.fileName || null,
+    mimeType: msg.mimetype || null,
+    documentBase64: msg.document || null,
   }
 }
 

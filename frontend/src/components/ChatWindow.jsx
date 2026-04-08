@@ -128,18 +128,24 @@ export default function ChatWindow() {
   const StatusIcon = STATUS_ICONS[status] || Circle
   const isPending = status === 'pending'
   const isInputDisabled = isPending
+  const hasInitialAttachment = Boolean(activeConversation?.imageBase64 || activeConversation?.documentBase64)
+  const hasInitialMessage = Boolean(activeConversation?.lastMessage || hasInitialAttachment)
 
   const renderMessages = () => {
     const items = []
 
     // If no messages but pending status with lastMessage, show it as initial message
-    if (messages.length === 0 && isPending && activeConversation?.lastMessage) {
+    if (messages.length === 0 && isPending && hasInitialMessage) {
       const initialMessage = {
         id: `initial-${activeConversation.id}`,
         sender: 'user',
         senderName: userName,
         text: activeConversation.lastMessage,
         createdAt: activeConversation.createdAt,
+        imageBase64: activeConversation.imageBase64,
+        fileName: activeConversation.fileName,
+        mimeType: activeConversation.mimeType,
+        documentBase64: activeConversation.documentBase64,
       }
 
       items.push(
@@ -324,7 +330,7 @@ export default function ChatWindow() {
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto scrollbar-thin px-5 py-4 space-y-2">
-        {messages.length === 0 && !(isPending && activeConversation?.lastMessage) ? (
+        {messages.length === 0 && !(isPending && hasInitialMessage) ? (
           <div className="flex flex-col items-center justify-center h-full gap-2 opacity-50">
             <p className="text-xs text-slate-500 dark:text-slate-400">No hay mensajes aún</p>
           </div>

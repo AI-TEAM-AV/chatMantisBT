@@ -63,6 +63,17 @@ public interface ChatService {
      * @param personNumber número de WhatsApp del usuario
      * @param name         nombre del contacto (pushName)
      * @param text         contenido del mensaje
+     * @param images       imagen en base64 (opcional)
+     * @param fileName     nombre de archivo (opcional)
+     * @param mimetype     tipo MIME del archivo (opcional)
+     * @param document     documento en base64 (opcional)
      */
-    void receiveWebhookMessage(Long personNumber, String name, String text);
+    void receiveWebhookMessage(
+            Long personNumber,
+            String name,
+            String text,
+            String images,
+            String fileName,
+            String mimetype,
+            String document);
 }

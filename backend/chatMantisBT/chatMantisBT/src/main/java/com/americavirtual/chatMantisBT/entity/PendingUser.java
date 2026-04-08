@@ -43,5 +43,13 @@ public class PendingUser {
     
     private String problematic;
 
+    private String images;
+
+    private String fileName;
+
+    private String mimetype;
+
+    private String document;
+
     private List<ChatMessage> messages = new ArrayList<>();
 }

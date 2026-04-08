@@ -11,6 +11,13 @@ public class ChatMessageRequest {
     @NotBlank(message = "Sender cannot be blank")
     private String sender;
 
-    @NotBlank(message = "Content cannot be blank")
     private String content;
+
+    private String images;
+
+    private String fileName;
+
+    private String mimetype;
+
+    private String document;
 }

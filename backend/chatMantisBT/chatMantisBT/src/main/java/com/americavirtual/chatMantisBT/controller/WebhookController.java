@@ -26,11 +26,11 @@ public class WebhookController {
      * Receives incoming WhatsApp messages from Evolution API and stores them in Redis.
      * Must be configured as the webhook URL in the Evolution API instance settings.
      *
-     * Ignored events:
+    * Ignored events:
      *  - Any event other than "messages.upsert"
      *  - Messages sent by the bot itself (fromMe: true)
      *  - Group messages (remoteJid contains "-")
-     *  - Messages with no text content
+    *  - Messages with no text and no attachment content
      */
     @PostMapping
     public ResponseEntity<Void> receive(@RequestBody WebhookPayload payload) {
@@ -54,15 +54,29 @@ public class WebhookController {
         }
 
         String text = payload.extractText();
-        if (text == null || text.isBlank()) {
-            log.debug("Webhook: ignoring non-text message from {}", personNumber);
+        String images = payload.extractImageBase64();
+        String fileName = payload.extractFileName();
+        String mimetype = payload.extractMimetype();
+        String document = payload.extractDocumentBase64();
+
+        boolean hasText = text != null && !text.isBlank();
+        boolean hasImage = images != null && !images.isBlank();
+        boolean hasDocument = document != null && !document.isBlank();
+
+        if (!hasText && !hasImage && !hasDocument) {
+            log.debug("Webhook: ignoring message without text/attachments from {}", personNumber);
             return ResponseEntity.ok().build();
         }
 
         String name = payload.getData().getPushName();
-        log.info("Webhook: incoming message from {} ({}): {}", personNumber, name, text);
+        log.info("Webhook: incoming message from {} ({}) [text={}, image={}, document={}]",
+                personNumber,
+                name,
+                hasText,
+                hasImage,
+                hasDocument);
 
-        chatService.receiveWebhookMessage(personNumber, name, text);
+        chatService.receiveWebhookMessage(personNumber, name, text, images, fileName, mimetype, document);
         return ResponseEntity.ok().build();
     }
 }
