@@ -131,6 +131,30 @@ export default function ChatWindow() {
 
   const renderMessages = () => {
     const items = []
+
+    // If no messages but pending status with lastMessage, show it as initial message
+    if (messages.length === 0 && isPending && activeConversation?.lastMessage) {
+      const initialMessage = {
+        id: `initial-${activeConversation.id}`,
+        sender: 'user',
+        senderName: userName,
+        text: activeConversation.lastMessage,
+        createdAt: activeConversation.createdAt,
+      }
+
+      items.push(
+        <MessageBubble
+          key={initialMessage.id}
+          message={initialMessage}
+          isOperator={false}
+          showAvatar={true}
+          operatorName={operator.name}
+          userName={userName}
+        />
+      )
+      return items
+    }
+
     for (let i = 0; i < messages.length; i++) {
       const msg = messages[i]
       const isOperator = msg.sender === 'operator'
@@ -300,7 +324,7 @@ export default function ChatWindow() {
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto scrollbar-thin px-5 py-4 space-y-2">
-        {messages.length === 0 ? (
+        {messages.length === 0 && !(isPending && activeConversation?.lastMessage) ? (
           <div className="flex flex-col items-center justify-center h-full gap-2 opacity-50">
             <p className="text-xs text-slate-500 dark:text-slate-400">No hay mensajes aún</p>
           </div>
