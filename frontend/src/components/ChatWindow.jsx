@@ -33,6 +33,7 @@ export default function ChatWindow() {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [showResolveModal, setShowResolveModal] = useState(false)
   const [selectedAttachment, setSelectedAttachment] = useState(null)
+  const [isSending, setIsSending] = useState(false)
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -65,26 +66,31 @@ export default function ChatWindow() {
 
   async function handleSend(e) {
     e?.preventDefault()
-    if (!activeConversation) return
+    if (!activeConversation || isSending) return
 
     const trimmed = input.trim()
     if (!trimmed && !selectedAttachment) return
 
-    await sendMessage(
-      activeConversation.id,
-      {
-        text: trimmed,
-        imageBase64: selectedAttachment?.kind === 'image' ? selectedAttachment.base64 : null,
-        documentBase64: selectedAttachment?.kind === 'document' ? selectedAttachment.base64 : null,
-        fileName: selectedAttachment?.name || null,
-        mimeType: selectedAttachment?.mimeType || null,
-      }
-    )
+    setIsSending(true)
+    try {
+      await sendMessage(
+        activeConversation.id,
+        {
+          text: trimmed,
+          imageBase64: selectedAttachment?.kind === 'image' ? selectedAttachment.base64 : null,
+          documentBase64: selectedAttachment?.kind === 'document' ? selectedAttachment.base64 : null,
+          fileName: selectedAttachment?.name || null,
+          mimeType: selectedAttachment?.mimeType || null,
+        }
+      )
 
-    setInput('')
-    setSelectedAttachment(null)
-    if (fileInputRef.current) fileInputRef.current.value = ''
-    inputRef.current?.focus()
+      setInput('')
+      setSelectedAttachment(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      inputRef.current?.focus()
+    } finally {
+      setIsSending(false)
+    }
   }
 
   function fileToBase64(file) {
@@ -200,6 +206,17 @@ export default function ChatWindow() {
 
   const renderMessages = () => {
     const items = []
+    
+    // The backend `messages` array should contain all messages including the initial one.
+    // We ONLY render the initialMessage from PendingUser metadata as a standalone message if:
+    // 1. There's an initial message (hasInitialMessage is true)
+    // 2. AND the messages array is empty
+    // 3. AND there's actually content (text OR attachments)
+    //
+    // This prevents duplicates when the backend correctly includes the initial message in the array.
+    // Note: Don't render initialMessage if messages array has content, as that means backend
+    // has the full history and the first message is already there.
+    
     const initialMessage = {
       id: `initial-${activeConversation.id}`,
       sender: 'user',
@@ -212,15 +229,9 @@ export default function ChatWindow() {
       documentBase64: activeConversation.documentBase64,
     }
 
-    const alreadyInHistory = messages.some(msg => (
-      msg.sender !== 'operator' &&
-      (msg.text || '') === (initialMessage.text || '') &&
-      (msg.imageBase64 || '') === (initialMessage.imageBase64 || '') &&
-      (msg.documentBase64 || '') === (initialMessage.documentBase64 || '')
-    ))
-
-    // Keep the Redis-backed first message visible in the chat timeline.
-    if (hasInitialMessage && !alreadyInHistory) {
+    // Only show the initial message from PendingUser if messages array is empty
+    // (meaning we have no history from backend yet, so we use the metadata as fallback)
+    if (hasInitialMessage && messages.length === 0) {
       items.push(
         <MessageBubble
           key={initialMessage.id}
@@ -481,7 +492,7 @@ export default function ChatWindow() {
             />
             <button
               onClick={handleSend}
-              disabled={(!input.trim() && !selectedAttachment) || isInputDisabled}
+              disabled={(!input.trim() && !selectedAttachment) || isInputDisabled || isSending}
               className="w-10 h-10 flex items-center justify-center rounded-xl bg-primary-600 text-white
                 hover:bg-primary-700 active:bg-primary-800 transition-colors
                 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"

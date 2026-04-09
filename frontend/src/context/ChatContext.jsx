@@ -54,21 +54,19 @@ function mapPendingToConversation(pending) {
  *
  * Convention: if the backend sender === "operator", it's displayed as an operator bubble.
  * All other sender values are treated as user messages.
+ * userName is used to override the numeric sender ID with the real user name.
  */
-function mapBackendMessage(conversationId, msg) {
+function mapBackendMessage(conversationId, msg, userName) {
   const isOperator = msg.sender === 'operator'
+  // If sender is NOT "operator", use the provided userName instead of the numeric sender
+  const displaySenderName = isOperator ? 'Operador' : userName
 
   return {
     id: uuidv4(),
     conversationId,
     sender: isOperator ? 'operator' : 'user',
-    senderName: msg.sender,
-    text: buildFallbackText({
-      text: msg.content,
-      imageBase64: msg.images,
-      documentBase64: msg.document,
-      fileName: msg.fileName,
-    }),
+    senderName: displaySenderName,
+    text: msg.content || '',
     createdAt: msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now(),
     imageBase64: msg.images || null,
     fileName: msg.fileName || null,
@@ -133,7 +131,7 @@ export function ChatProvider({ children }) {
         if (pending.messages && pending.messages.length > 0) {
           const convId = String(pending.personNumber)
           backendMessages[convId] = pending.messages.map(msg =>
-            mapBackendMessage(convId, msg)
+            mapBackendMessage(convId, msg, pending.name || `Usuario ${convId}`)
           )
         }
       })
@@ -155,17 +153,19 @@ export function ChatProvider({ children }) {
     if (!payload || !payload.personNumber) return
 
     const conversationId = String(payload.personNumber)
+    const isOperator = payload.sender === 'operator'
+    
+    // Lookup the conversation to get the user's real name
+    const existingConv = conversations.find(c => c.id === conversationId)
+    const userName = existingConv?.userName || `Usuario ${conversationId}`
+    const displaySenderName = isOperator ? 'Operador' : userName
+
     const message = {
       id: uuidv4(),
       conversationId,
-      sender: payload.sender === 'operator' ? 'operator' : 'user',
-      senderName: payload.sender,
-      text: buildFallbackText({
-        text: payload.content,
-        imageBase64: payload.images,
-        documentBase64: payload.document,
-        fileName: payload.fileName,
-      }),
+      sender: isOperator ? 'operator' : 'user',
+      senderName: displaySenderName,
+      text: payload.content || '',
       createdAt: payload.timestamp ? new Date(payload.timestamp).getTime() : Date.now(),
       imageBase64: payload.images || null,
       fileName: payload.fileName || null,
