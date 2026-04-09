@@ -13,10 +13,14 @@ function toDataUrl(base64, fallbackMime = 'application/octet-stream') {
 
 export default function MessageBubble({ message, isOperator, showAvatar, operatorName, userName }) {
   const { text, createdAt, senderName, imageBase64, fileName, mimeType, documentBase64 } = message
-  const name = isOperator ? (senderName || operatorName) : (senderName || userName)
+  const name = isOperator ? 'Operador' : userName
   const imageSrc = toDataUrl(imageBase64, mimeType || 'image/jpeg')
   const documentHref = toDataUrl(documentBase64, mimeType || 'application/octet-stream')
-  const hasText = Boolean(text && text.trim())
+  const hasImage = Boolean(imageSrc)
+  const hasDocument = Boolean(documentHref)
+  // Only show text if it's NOT a fallback ("Imagen adjunta" or "Archivo adjunto...")
+  const isTextFallback = text?.includes('Imagen adjunta') || text?.includes('Archivo adjunto')
+  const hasText = Boolean(text && text.trim() && !isTextFallback)
 
   const attachmentContent = (
     <>

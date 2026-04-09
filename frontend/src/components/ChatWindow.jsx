@@ -9,6 +9,7 @@ import { useToast } from '../context/ToastContext.jsx'
 import { chatsApi } from '../services/api.js'
 import MessageBubble from './MessageBubble.jsx'
 import ConfirmModal from './ConfirmModal.jsx'
+import NewMessagesIndicator from './NewMessagesIndicator.jsx'
 import {
   getInitials,
   STATUS_LABELS,
@@ -33,16 +34,74 @@ export default function ChatWindow() {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [showResolveModal, setShowResolveModal] = useState(false)
   const [selectedAttachment, setSelectedAttachment] = useState(null)
+  const [isSending, setIsSending] = useState(false)
+  const [hasNewMessages, setHasNewMessages] = useState(false)
   const messagesEndRef = useRef(null)
+  const messagesContainerRef = useRef(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
   const statusMenuRef = useRef(null)
+  const shouldStickToBottomRef = useRef(true)
+  const previousConversationIdRef = useRef(null)
+  const previousMessagesLengthRef = useRef(0)
 
   const messages = activeConversation ? getMessages(activeConversation.id) : []
 
+  function scrollContainerToBottom(behavior = 'smooth') {
+    const container = messagesContainerRef.current
+    if (!container) return
+    container.scrollTo({ top: container.scrollHeight, behavior })
+  }
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    const conversationId = activeConversation?.id ?? null
+    const conversationChanged = previousConversationIdRef.current !== conversationId
+    previousConversationIdRef.current = conversationId
+
+    if (!activeConversation) return
+
+    if (conversationChanged) {
+      shouldStickToBottomRef.current = true
+      previousMessagesLengthRef.current = messages.length
+      setHasNewMessages(false)
+      scrollContainerToBottom('auto')
+      return
+    }
+
+    const previousLength = previousMessagesLengthRef.current
+    const nextLength = messages.length
+    const hasNewMessages = nextLength > previousLength
+
+    if (hasNewMessages && !shouldStickToBottomRef.current) {
+      setHasNewMessages(true)
+    }
+
+    if (shouldStickToBottomRef.current) {
+      scrollContainerToBottom('smooth')
+      setHasNewMessages(false)
+    }
+
+    previousMessagesLengthRef.current = nextLength
+  }, [activeConversation?.id, messages])
+
+  function handleMessagesScroll() {
+    const container = messagesContainerRef.current
+    if (!container) return
+
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
+    const isNearBottom = distanceFromBottom < 120
+    shouldStickToBottomRef.current = isNearBottom
+
+    if (isNearBottom) {
+      setHasNewMessages(false)
+    }
+  }
+
+  function scrollToBottom() {
+    shouldStickToBottomRef.current = true
+    setHasNewMessages(false)
+    scrollContainerToBottom('auto')
+  }
 
   useEffect(() => {
     if (activeConversation?.status === 'open') {
@@ -65,26 +124,31 @@ export default function ChatWindow() {
 
   async function handleSend(e) {
     e?.preventDefault()
-    if (!activeConversation) return
+    if (!activeConversation || isSending) return
 
     const trimmed = input.trim()
     if (!trimmed && !selectedAttachment) return
 
-    await sendMessage(
-      activeConversation.id,
-      {
-        text: trimmed,
-        imageBase64: selectedAttachment?.kind === 'image' ? selectedAttachment.base64 : null,
-        documentBase64: selectedAttachment?.kind === 'document' ? selectedAttachment.base64 : null,
-        fileName: selectedAttachment?.name || null,
-        mimeType: selectedAttachment?.mimeType || null,
-      }
-    )
+    setIsSending(true)
+    try {
+      await sendMessage(
+        activeConversation.id,
+        {
+          text: trimmed,
+          imageBase64: selectedAttachment?.kind === 'image' ? selectedAttachment.base64 : null,
+          documentBase64: selectedAttachment?.kind === 'document' ? selectedAttachment.base64 : null,
+          fileName: selectedAttachment?.name || null,
+          mimeType: selectedAttachment?.mimeType || null,
+        }
+      )
 
-    setInput('')
-    setSelectedAttachment(null)
-    if (fileInputRef.current) fileInputRef.current.value = ''
-    inputRef.current?.focus()
+      setInput('')
+      setSelectedAttachment(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      inputRef.current?.focus()
+    } finally {
+      setIsSending(false)
+    }
   }
 
   function fileToBase64(file) {
@@ -200,6 +264,17 @@ export default function ChatWindow() {
 
   const renderMessages = () => {
     const items = []
+    
+    // The backend `messages` array should contain all messages including the initial one.
+    // We ONLY render the initialMessage from PendingUser metadata as a standalone message if:
+    // 1. There's an initial message (hasInitialMessage is true)
+    // 2. AND the messages array is empty
+    // 3. AND there's actually content (text OR attachments)
+    //
+    // This prevents duplicates when the backend correctly includes the initial message in the array.
+    // Note: Don't render initialMessage if messages array has content, as that means backend
+    // has the full history and the first message is already there.
+    
     const initialMessage = {
       id: `initial-${activeConversation.id}`,
       sender: 'user',
@@ -212,15 +287,9 @@ export default function ChatWindow() {
       documentBase64: activeConversation.documentBase64,
     }
 
-    const alreadyInHistory = messages.some(msg => (
-      msg.sender !== 'operator' &&
-      (msg.text || '') === (initialMessage.text || '') &&
-      (msg.imageBase64 || '') === (initialMessage.imageBase64 || '') &&
-      (msg.documentBase64 || '') === (initialMessage.documentBase64 || '')
-    ))
-
-    // Keep the Redis-backed first message visible in the chat timeline.
-    if (hasInitialMessage && !alreadyInHistory) {
+    // Only show the initial message from PendingUser if messages array is empty
+    // (meaning we have no history from backend yet, so we use the metadata as fallback)
+    if (hasInitialMessage && messages.length === 0) {
       items.push(
         <MessageBubble
           key={initialMessage.id}
@@ -401,15 +470,26 @@ export default function ChatWindow() {
       )}
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin px-5 py-4 space-y-2">
-        {messages.length === 0 && !(isPending && hasInitialMessage) ? (
-          <div className="flex flex-col items-center justify-center h-full gap-2 opacity-50">
-            <p className="text-xs text-slate-500 dark:text-slate-400">No hay mensajes aún</p>
-          </div>
-        ) : (
-          renderMessages()
-        )}
-        <div ref={messagesEndRef} />
+      <div className="relative flex-1 min-h-0">
+        <div
+          ref={messagesContainerRef}
+          onScroll={handleMessagesScroll}
+          className="h-full overflow-y-auto scrollbar-thin px-5 py-4 space-y-2"
+        >
+          {messages.length === 0 && !(isPending && hasInitialMessage) ? (
+            <div className="flex flex-col items-center justify-center h-full gap-2 opacity-50">
+              <p className="text-xs text-slate-500 dark:text-slate-400">No hay mensajes aún</p>
+            </div>
+          ) : (
+            renderMessages()
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        <NewMessagesIndicator
+          visible={hasNewMessages && !shouldStickToBottomRef.current}
+          onJumpToLatest={scrollToBottom}
+        />
       </div>
 
       {/* Input area */}
@@ -481,7 +561,7 @@ export default function ChatWindow() {
             />
             <button
               onClick={handleSend}
-              disabled={(!input.trim() && !selectedAttachment) || isInputDisabled}
+              disabled={(!input.trim() && !selectedAttachment) || isInputDisabled || isSending}
               className="w-10 h-10 flex items-center justify-center rounded-xl bg-primary-600 text-white
                 hover:bg-primary-700 active:bg-primary-800 transition-colors
                 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"

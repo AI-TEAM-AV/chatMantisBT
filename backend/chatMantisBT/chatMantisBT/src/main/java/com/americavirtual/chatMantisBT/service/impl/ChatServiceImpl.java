@@ -207,8 +207,10 @@ public class ChatServiceImpl implements ChatService {
         PendingUser pendingUser = pendingUserRepository.findById(personNumber).orElse(null);
         boolean hasMessageContent = hasAnyMessageContent(text, images, document);
         ChatMessage inboundMessage = null;
+        boolean isNewConversation = pendingUser == null;
 
         if (pendingUser == null) {
+            // New conversation: create with initial metadata
             pendingUser = new PendingUser();
             pendingUser.setPersonNumber(personNumber);
             pendingUser.setName(name);
@@ -219,24 +221,29 @@ public class ChatServiceImpl implements ChatService {
             pendingUser.setMimetype(mimetype);
             pendingUser.setDocument(document);
         } else {
-            if (isBlank(pendingUser.getName()) && !isBlank(name)) {
-                pendingUser.setName(name);
+            // Existing conversation: only update initial metadata if blank AND it's the very first message
+            // (messages array is empty). Never overwrite them on subsequent messages.
+            if (pendingUser.getMessages().isEmpty()) {
+                if (isBlank(pendingUser.getName()) && !isBlank(name)) {
+                    pendingUser.setName(name);
+                }
+                if (isBlank(pendingUser.getProblematic()) && !isBlank(text)) {
+                    pendingUser.setProblematic(text);
+                }
+                if (isBlank(pendingUser.getImages()) && !isBlank(images)) {
+                    pendingUser.setImages(images);
+                }
+                if (isBlank(pendingUser.getFileName()) && !isBlank(fileName)) {
+                    pendingUser.setFileName(fileName);
+                }
+                if (isBlank(pendingUser.getMimetype()) && !isBlank(mimetype)) {
+                    pendingUser.setMimetype(mimetype);
+                }
+                if (isBlank(pendingUser.getDocument()) && !isBlank(document)) {
+                    pendingUser.setDocument(document);
+                }
             }
-            if (isBlank(pendingUser.getProblematic()) && !isBlank(text)) {
-                pendingUser.setProblematic(text);
-            }
-            if (isBlank(pendingUser.getImages()) && !isBlank(images)) {
-                pendingUser.setImages(images);
-            }
-            if (isBlank(pendingUser.getFileName()) && !isBlank(fileName)) {
-                pendingUser.setFileName(fileName);
-            }
-            if (isBlank(pendingUser.getMimetype()) && !isBlank(mimetype)) {
-                pendingUser.setMimetype(mimetype);
-            }
-            if (isBlank(pendingUser.getDocument()) && !isBlank(document)) {
-                pendingUser.setDocument(document);
-            }
+            // For subsequent messages, never modify initial metadata - only add to messages array
         }
 
         if (hasMessageContent) {
