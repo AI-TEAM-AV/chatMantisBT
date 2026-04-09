@@ -95,6 +95,14 @@ public class WebhookPayload {
             return msg.getCaption();
         }
 
+        JsonNode documentMessage = msg.getDocumentMessage();
+        if (documentMessage != null) {
+            String caption = readText(documentMessage, "caption");
+            if (caption != null && !caption.isBlank()) {
+                return caption;
+            }
+        }
+
         JsonNode documentWithCaption = msg.getDocumentWithCaptionMessage();
         if (documentWithCaption != null) {
             String caption = readNestedText(documentWithCaption, "message", "documentMessage", "caption");

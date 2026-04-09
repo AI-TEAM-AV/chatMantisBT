@@ -9,6 +9,7 @@ import { useToast } from '../context/ToastContext.jsx'
 import { chatsApi } from '../services/api.js'
 import MessageBubble from './MessageBubble.jsx'
 import ConfirmModal from './ConfirmModal.jsx'
+import NewMessagesIndicator from './NewMessagesIndicator.jsx'
 import {
   getInitials,
   STATUS_LABELS,
@@ -34,16 +35,73 @@ export default function ChatWindow() {
   const [showResolveModal, setShowResolveModal] = useState(false)
   const [selectedAttachment, setSelectedAttachment] = useState(null)
   const [isSending, setIsSending] = useState(false)
+  const [hasNewMessages, setHasNewMessages] = useState(false)
   const messagesEndRef = useRef(null)
+  const messagesContainerRef = useRef(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
   const statusMenuRef = useRef(null)
+  const shouldStickToBottomRef = useRef(true)
+  const previousConversationIdRef = useRef(null)
+  const previousMessagesLengthRef = useRef(0)
 
   const messages = activeConversation ? getMessages(activeConversation.id) : []
 
+  function scrollContainerToBottom(behavior = 'smooth') {
+    const container = messagesContainerRef.current
+    if (!container) return
+    container.scrollTo({ top: container.scrollHeight, behavior })
+  }
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    const conversationId = activeConversation?.id ?? null
+    const conversationChanged = previousConversationIdRef.current !== conversationId
+    previousConversationIdRef.current = conversationId
+
+    if (!activeConversation) return
+
+    if (conversationChanged) {
+      shouldStickToBottomRef.current = true
+      previousMessagesLengthRef.current = messages.length
+      setHasNewMessages(false)
+      scrollContainerToBottom('auto')
+      return
+    }
+
+    const previousLength = previousMessagesLengthRef.current
+    const nextLength = messages.length
+    const hasNewMessages = nextLength > previousLength
+
+    if (hasNewMessages && !shouldStickToBottomRef.current) {
+      setHasNewMessages(true)
+    }
+
+    if (shouldStickToBottomRef.current) {
+      scrollContainerToBottom('smooth')
+      setHasNewMessages(false)
+    }
+
+    previousMessagesLengthRef.current = nextLength
+  }, [activeConversation?.id, messages])
+
+  function handleMessagesScroll() {
+    const container = messagesContainerRef.current
+    if (!container) return
+
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
+    const isNearBottom = distanceFromBottom < 120
+    shouldStickToBottomRef.current = isNearBottom
+
+    if (isNearBottom) {
+      setHasNewMessages(false)
+    }
+  }
+
+  function scrollToBottom() {
+    shouldStickToBottomRef.current = true
+    setHasNewMessages(false)
+    scrollContainerToBottom('auto')
+  }
 
   useEffect(() => {
     if (activeConversation?.status === 'open') {
@@ -412,15 +470,26 @@ export default function ChatWindow() {
       )}
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin px-5 py-4 space-y-2">
-        {messages.length === 0 && !(isPending && hasInitialMessage) ? (
-          <div className="flex flex-col items-center justify-center h-full gap-2 opacity-50">
-            <p className="text-xs text-slate-500 dark:text-slate-400">No hay mensajes aún</p>
-          </div>
-        ) : (
-          renderMessages()
-        )}
-        <div ref={messagesEndRef} />
+      <div className="relative flex-1 min-h-0">
+        <div
+          ref={messagesContainerRef}
+          onScroll={handleMessagesScroll}
+          className="h-full overflow-y-auto scrollbar-thin px-5 py-4 space-y-2"
+        >
+          {messages.length === 0 && !(isPending && hasInitialMessage) ? (
+            <div className="flex flex-col items-center justify-center h-full gap-2 opacity-50">
+              <p className="text-xs text-slate-500 dark:text-slate-400">No hay mensajes aún</p>
+            </div>
+          ) : (
+            renderMessages()
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        <NewMessagesIndicator
+          visible={hasNewMessages && !shouldStickToBottomRef.current}
+          onJumpToLatest={scrollToBottom}
+        />
       </div>
 
       {/* Input area */}
