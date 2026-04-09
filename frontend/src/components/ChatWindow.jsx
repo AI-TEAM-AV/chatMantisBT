@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   Send, ChevronDown, CheckCircle, Clock, Circle,
-  PlayCircle, XCircle, LockKeyhole,
+  PlayCircle, XCircle, LockKeyhole, Paperclip, ImageIcon, FileText, X,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useChat } from '../context/ChatContext.jsx'
@@ -32,8 +32,10 @@ export default function ChatWindow() {
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [showResolveModal, setShowResolveModal] = useState(false)
+  const [selectedAttachment, setSelectedAttachment] = useState(null)
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
+  const fileInputRef = useRef(null)
   const statusMenuRef = useRef(null)
 
   const messages = activeConversation ? getMessages(activeConversation.id) : []
@@ -47,6 +49,8 @@ export default function ChatWindow() {
       inputRef.current?.focus()
     }
     setConfirmDelete(false)
+    setSelectedAttachment(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }, [activeConversation?.id])
 
   useEffect(() => {
@@ -61,10 +65,73 @@ export default function ChatWindow() {
 
   async function handleSend(e) {
     e?.preventDefault()
-    if (!input.trim() || !activeConversation) return
-    await sendMessage(activeConversation.id, input, operator.name)
+    if (!activeConversation) return
+
+    const trimmed = input.trim()
+    if (!trimmed && !selectedAttachment) return
+
+    await sendMessage(
+      activeConversation.id,
+      {
+        text: trimmed,
+        imageBase64: selectedAttachment?.kind === 'image' ? selectedAttachment.base64 : null,
+        documentBase64: selectedAttachment?.kind === 'document' ? selectedAttachment.base64 : null,
+        fileName: selectedAttachment?.name || null,
+        mimeType: selectedAttachment?.mimeType || null,
+      }
+    )
+
     setInput('')
+    setSelectedAttachment(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
     inputRef.current?.focus()
+  }
+
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = String(reader.result || '')
+        const [, base64 = ''] = result.split(',')
+        resolve(base64)
+      }
+      reader.onerror = () => reject(new Error('No se pudo leer el archivo'))
+      reader.readAsDataURL(file)
+    })
+  }
+
+  async function handleAttachFile(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const MAX_FILE_SIZE = 8 * 1024 * 1024
+    if (file.size > MAX_FILE_SIZE) {
+      showToast('El archivo supera el máximo de 8MB.', 'error')
+      e.target.value = ''
+      return
+    }
+
+    const mimeType = file.type || 'application/octet-stream'
+    const kind = mimeType.startsWith('image/') ? 'image' : 'document'
+
+    try {
+      const base64 = await fileToBase64(file)
+      setSelectedAttachment({
+        kind,
+        name: file.name,
+        mimeType,
+        base64,
+      })
+    } catch {
+      showToast('No se pudo adjuntar el archivo.', 'error')
+    } finally {
+      e.target.value = ''
+    }
+  }
+
+  function clearAttachment() {
+    setSelectedAttachment(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   function handleKeyDown(e) {
@@ -128,20 +195,32 @@ export default function ChatWindow() {
   const StatusIcon = STATUS_ICONS[status] || Circle
   const isPending = status === 'pending'
   const isInputDisabled = isPending
+  const hasInitialAttachment = Boolean(activeConversation?.imageBase64 || activeConversation?.documentBase64)
+  const hasInitialMessage = Boolean(activeConversation?.lastMessage || hasInitialAttachment)
 
   const renderMessages = () => {
     const items = []
+    const initialMessage = {
+      id: `initial-${activeConversation.id}`,
+      sender: 'user',
+      senderName: userName,
+      text: activeConversation.lastMessage,
+      createdAt: activeConversation.createdAt,
+      imageBase64: activeConversation.imageBase64,
+      fileName: activeConversation.fileName,
+      mimeType: activeConversation.mimeType,
+      documentBase64: activeConversation.documentBase64,
+    }
 
-    // If no messages but pending status with lastMessage, show it as initial message
-    if (messages.length === 0 && isPending && activeConversation?.lastMessage) {
-      const initialMessage = {
-        id: `initial-${activeConversation.id}`,
-        sender: 'user',
-        senderName: userName,
-        text: activeConversation.lastMessage,
-        createdAt: activeConversation.createdAt,
-      }
+    const alreadyInHistory = messages.some(msg => (
+      msg.sender !== 'operator' &&
+      (msg.text || '') === (initialMessage.text || '') &&
+      (msg.imageBase64 || '') === (initialMessage.imageBase64 || '') &&
+      (msg.documentBase64 || '') === (initialMessage.documentBase64 || '')
+    ))
 
+    // Keep the Redis-backed first message visible in the chat timeline.
+    if (hasInitialMessage && !alreadyInHistory) {
       items.push(
         <MessageBubble
           key={initialMessage.id}
@@ -152,7 +231,6 @@ export default function ChatWindow() {
           userName={userName}
         />
       )
-      return items
     }
 
     for (let i = 0; i < messages.length; i++) {
@@ -324,7 +402,7 @@ export default function ChatWindow() {
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto scrollbar-thin px-5 py-4 space-y-2">
-        {messages.length === 0 && !(isPending && activeConversation?.lastMessage) ? (
+        {messages.length === 0 && !(isPending && hasInitialMessage) ? (
           <div className="flex flex-col items-center justify-center h-full gap-2 opacity-50">
             <p className="text-xs text-slate-500 dark:text-slate-400">No hay mensajes aún</p>
           </div>
@@ -342,7 +420,46 @@ export default function ChatWindow() {
         </div>
       ) : (
         <div className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 px-4 py-3 shrink-0">
+          {selectedAttachment && (
+            <div className="mb-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/40 px-3 py-2 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                {selectedAttachment.kind === 'image' ? (
+                  <ImageIcon size={14} className="text-slate-500 dark:text-slate-300 shrink-0" />
+                ) : (
+                  <FileText size={14} className="text-slate-500 dark:text-slate-300 shrink-0" />
+                )}
+                <p className="text-xs text-slate-700 dark:text-slate-200 truncate">{selectedAttachment.name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={clearAttachment}
+                className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-500 dark:text-slate-300"
+                aria-label="Quitar adjunto"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
           <div className="flex items-end gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.ppt,.pptx"
+              onChange={handleAttachFile}
+              className="hidden"
+            />
+
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isInputDisabled}
+              className="w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+              title="Adjuntar imagen o documento"
+            >
+              <Paperclip size={16} />
+            </button>
+
             <textarea
               ref={inputRef}
               value={input}
@@ -364,7 +481,7 @@ export default function ChatWindow() {
             />
             <button
               onClick={handleSend}
-              disabled={!input.trim() || isInputDisabled}
+              disabled={(!input.trim() && !selectedAttachment) || isInputDisabled}
               className="w-10 h-10 flex items-center justify-center rounded-xl bg-primary-600 text-white
                 hover:bg-primary-700 active:bg-primary-800 transition-colors
                 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"

@@ -112,14 +112,68 @@ public class EvolutionApiWsService {
             }
 
             String text = payload.extractText();
-            if (text == null || text.isBlank()) {
-                log.debug("WS: ignoring non-text message from {}", personNumber);
+            String images = payload.extractImageBase64();
+            String fileName = payload.extractFileName();
+            String mimetype = payload.extractMimetype();
+            String document = payload.extractDocumentBase64();
+
+            boolean imageIsUrl = images != null && (images.startsWith("http://") || images.startsWith("https://"));
+            boolean documentIsUrl = document != null && (document.startsWith("http://") || document.startsWith("https://"));
+            if (imageIsUrl || documentIsUrl) {
+                EvolutionApi.MediaDecodeResult decoded = EvolutionApi.getBase64FromMediaMessage(
+                        objectMapper.valueToTree(payload.getData()));
+                if (decoded != null && decoded.base64 != null && !decoded.base64.isBlank()) {
+                    log.debug("WS: media URL decoded to base64 [mediaType={}, hasFileName={}]",
+                        decoded.mediaType,
+                        decoded.fileName != null && !decoded.fileName.isBlank());
+                    boolean isImage = "imageMessage".equalsIgnoreCase(decoded.mediaType)
+                            || "image".equalsIgnoreCase(decoded.mediaType);
+                    if (isImage) {
+                        images = decoded.base64;
+                        document = null;
+                    } else {
+                        document = decoded.base64;
+                        images = null;
+                    }
+                    if ((fileName == null || fileName.isBlank()) && decoded.fileName != null && !decoded.fileName.isBlank()) {
+                        fileName = decoded.fileName;
+                    }
+                    if ((mimetype == null || mimetype.isBlank()) && decoded.mimetype != null && !decoded.mimetype.isBlank()) {
+                        mimetype = decoded.mimetype;
+                    }
+                    if ((text == null || text.isBlank()) && decoded.caption != null && !decoded.caption.isBlank()) {
+                        text = decoded.caption;
+                    }
+                } else {
+                    log.warn("WS: media URL detected but Evolution base64 decode returned empty");
+                }
+            }
+
+            boolean hasText = text != null && !text.isBlank();
+            boolean hasImage = images != null && !images.isBlank();
+            boolean hasDocument = document != null && !document.isBlank();
+
+            if (!hasText && !hasImage && !hasDocument) {
+                log.debug("WS: ignoring message without text/attachments from {}", personNumber);
                 return;
             }
 
             String name = payload.getData().getPushName();
-            chatService.receiveWebhookMessage(personNumber, name, text);
-            log.debug("WS: processed message from {} ({})", personNumber, name);
+            chatService.receiveWebhookMessage(
+                    personNumber,
+                    name,
+                    text,
+                    images,
+                    fileName,
+                    mimetype,
+                    document);
+            log.debug(
+                    "WS: processed message from {} ({}) [text={}, image={}, document={}]",
+                    personNumber,
+                    name,
+                    hasText,
+                    hasImage,
+                    hasDocument);
 
         } catch (Exception e) {
             log.error("Error processing EvolutionAPI Socket.IO message", e);

@@ -16,6 +16,10 @@ public class PendingUserResponse {
     private String state;
     private String name;
     private String problematic;
+    private String images;
+    private String fileName;
+    private String mimetype;
+    private String document;
     private List<ChatMessage> messages;
 
     public PendingUserResponse(PendingUser pendingUser) {
@@ -23,6 +27,10 @@ public class PendingUserResponse {
         this.state = pendingUser.getState();
         this.name = pendingUser.getName();
         this.problematic = pendingUser.getProblematic();
+        this.images = pendingUser.getImages();
+        this.fileName = pendingUser.getFileName();
+        this.mimetype = pendingUser.getMimetype();
+        this.document = pendingUser.getDocument();
         this.messages = pendingUser.getMessages();
     }
 }

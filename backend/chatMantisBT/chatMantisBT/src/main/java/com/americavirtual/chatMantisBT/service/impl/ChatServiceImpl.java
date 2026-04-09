@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import com.americavirtual.chatMantisBT.entity.ChatMessage;
 import com.americavirtual.chatMantisBT.entity.PendingUser;
 import com.americavirtual.chatMantisBT.entity.dto.ChatMessageRequest;
+import com.americavirtual.chatMantisBT.entity.dto.ChatSocketMessageResponse;
 import com.americavirtual.chatMantisBT.entity.dto.CreateChatRequest;
 import com.americavirtual.chatMantisBT.entity.dto.PendingUserResponse;
 import com.americavirtual.chatMantisBT.repository.PendingUserRepository;
@@ -39,6 +40,48 @@ public class ChatServiceImpl implements ChatService {
         Object payload = Map.of("personNumber", personNumber, "state", "closed");
         messagingTemplate.convertAndSend("/topic/chats/" + personNumber, payload);
         messagingTemplate.convertAndSend("/topic/chats", payload);
+    }
+
+    private void broadcastMessage(Long personNumber, ChatMessage message) {
+        if (messagingTemplate == null || message == null) return;
+        ChatSocketMessageResponse payload = new ChatSocketMessageResponse(personNumber, message);
+        messagingTemplate.convertAndSend("/topic/chats/" + personNumber + "/messages", payload);
+        messagingTemplate.convertAndSend("/topic/chats/messages", payload);
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private boolean hasAnyMessageContent(String content, String images, String document) {
+        return !isBlank(content) || !isBlank(images) || !isBlank(document);
+    }
+
+    private boolean hasAnyAttachment(String images, String document) {
+        return !isBlank(images) || !isBlank(document);
+    }
+
+    private void sendOutboundMessageToEvolution(Long personNumber, ChatMessageRequest request) {
+        if (!"operator".equals(request.getSender())) {
+            return;
+        }
+
+        if (!hasAnyAttachment(request.getImages(), request.getDocument())) {
+            if (!isBlank(request.getContent())) {
+                EvolutionApi.sendMessage(personNumber, request.getContent());
+            }
+            return;
+        }
+
+        String mediaType = !isBlank(request.getImages()) ? "image" : "document";
+        String mediaBase64 = !isBlank(request.getImages()) ? request.getImages() : request.getDocument();
+        EvolutionApi.sendMedia(
+                personNumber,
+                mediaType,
+                mediaBase64,
+                request.getFileName(),
+                request.getContent(),
+                request.getMimetype());
     }
 
     @Override
@@ -94,6 +137,10 @@ public class ChatServiceImpl implements ChatService {
         pendingUser.setPersonNumber(createChatRequest.getPersonNumber());
         pendingUser.setName(createChatRequest.getName());
         pendingUser.setProblematic(createChatRequest.getProblematic());
+        pendingUser.setImages(createChatRequest.getImages());
+        pendingUser.setFileName(createChatRequest.getFileName());
+        pendingUser.setMimetype(createChatRequest.getMimetype());
+        pendingUser.setDocument(createChatRequest.getDocument());
         pendingUser.setState("operator");
 
         PendingUser savedUser = pendingUserRepository.save(pendingUser);
@@ -110,15 +157,25 @@ public class ChatServiceImpl implements ChatService {
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Pending user not found with person number: " + personNumber));
 
-        pendingUser.getMessages().add(new ChatMessage(request.getSender(), request.getContent()));
-        PendingUser updated = pendingUserRepository.save(pendingUser);
-
-        // Enviar mensaje a Evolution API si es operador
-        if(request.getSender().equals("operator")) {
-            EvolutionApi.sendMessage(personNumber, request.getContent());
+        if (!hasAnyMessageContent(request.getContent(), request.getImages(), request.getDocument())) {
+            throw new IllegalArgumentException("Message content cannot be empty when no attachment is provided");
         }
 
+        ChatMessage outboundMessage = new ChatMessage(
+                request.getSender(),
+                request.getContent(),
+                request.getImages(),
+                request.getFileName(),
+                request.getMimetype(),
+            request.getDocument());
+
+        pendingUser.getMessages().add(outboundMessage);
+        PendingUser updated = pendingUserRepository.save(pendingUser);
+
+        sendOutboundMessageToEvolution(personNumber, request);
+
         PendingUserResponse response = new PendingUserResponse(updated);
+        broadcastMessage(personNumber, outboundMessage);
         broadcast(response);
         return response;
     }
@@ -139,12 +196,74 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
-    public void receiveWebhookMessage(Long personNumber, String name, String text) {
+    public void receiveWebhookMessage(
+            Long personNumber,
+            String name,
+            String text,
+            String images,
+            String fileName,
+            String mimetype,
+            String document) {
         PendingUser pendingUser = pendingUserRepository.findById(personNumber).orElse(null);
-        if (pendingUser != null) {
-            pendingUser.getMessages().add(new ChatMessage(String.valueOf(personNumber), text));
-            PendingUser saved = pendingUserRepository.save(pendingUser);
-            broadcast(new PendingUserResponse(saved));
+        boolean hasMessageContent = hasAnyMessageContent(text, images, document);
+        ChatMessage inboundMessage = null;
+
+        if (pendingUser == null) {
+            pendingUser = new PendingUser();
+            pendingUser.setPersonNumber(personNumber);
+            pendingUser.setName(name);
+            pendingUser.setState("waiting");
+            pendingUser.setProblematic(text);
+            pendingUser.setImages(images);
+            pendingUser.setFileName(fileName);
+            pendingUser.setMimetype(mimetype);
+            pendingUser.setDocument(document);
+        } else {
+            if (isBlank(pendingUser.getName()) && !isBlank(name)) {
+                pendingUser.setName(name);
+            }
+            if (isBlank(pendingUser.getProblematic()) && !isBlank(text)) {
+                pendingUser.setProblematic(text);
+            }
+            if (isBlank(pendingUser.getImages()) && !isBlank(images)) {
+                pendingUser.setImages(images);
+            }
+            if (isBlank(pendingUser.getFileName()) && !isBlank(fileName)) {
+                pendingUser.setFileName(fileName);
+            }
+            if (isBlank(pendingUser.getMimetype()) && !isBlank(mimetype)) {
+                pendingUser.setMimetype(mimetype);
+            }
+            if (isBlank(pendingUser.getDocument()) && !isBlank(document)) {
+                pendingUser.setDocument(document);
+            }
         }
+
+        if (hasMessageContent) {
+            inboundMessage = new ChatMessage(
+                    String.valueOf(personNumber),
+                    text,
+                    images,
+                    fileName,
+                    mimetype,
+                document);
+            pendingUser.getMessages().add(inboundMessage);
+        }
+
+        PendingUser saved = pendingUserRepository.save(pendingUser);
+
+        // Si la conversación no tenía mensaje textual y llega un adjunto, mantener
+        // contenido visible para la lista/resumen sin perder compatibilidad existente.
+        if (isBlank(saved.getProblematic()) && hasAnyAttachment(images, document)) {
+            saved.setProblematic(!isBlank(images)
+                    ? "Imagen adjunta"
+                    : "Archivo adjunto: " + (fileName == null ? "documento" : fileName));
+            saved = pendingUserRepository.save(saved);
+        }
+
+        if (hasMessageContent) {
+            broadcastMessage(personNumber, inboundMessage);
+        }
+        broadcast(new PendingUserResponse(saved));
     }
 }

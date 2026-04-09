@@ -8,9 +8,23 @@ class WebSocketService {
     this.client = null;
     this.connected = false;
     this.subscriptions = {};
+    this.subscriptionHandlers = {};
+  }
+
+  activateQueuedSubscriptions() {
+    if (!this.client || !this.connected) return;
+
+    Object.entries(this.subscriptionHandlers).forEach(([topic, callback]) => {
+      if (this.subscriptions[topic]) return;
+      this.subscriptions[topic] = this.client.subscribe(topic, (msg) => {
+        callback(JSON.parse(msg.body));
+      });
+    });
   }
 
   connect(onMessage) {
+    if (this.client && (this.connected || this.client.active)) return;
+
     const token = localStorage.getItem('helpdesk_token')
     this.client = new Client({
       brokerURL: WS_URL,
@@ -19,9 +33,14 @@ class WebSocketService {
       connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
       onConnect: () => {
         this.connected = true;
+        this.activateQueuedSubscriptions();
       },
       onStompError: (frame) => {
         console.error('STOMP error:', frame);
+      },
+      onWebSocketClose: () => {
+        this.connected = false;
+        this.subscriptions = {};
       },
     });
     this.client.onUnhandledMessage = (msg) => {
@@ -31,11 +50,8 @@ class WebSocketService {
   }
 
   subscribe(topic, callback) {
-    if (!this.client || !this.connected) return;
-    if (this.subscriptions[topic]) return;
-    this.subscriptions[topic] = this.client.subscribe(topic, (msg) => {
-      callback(JSON.parse(msg.body));
-    });
+    this.subscriptionHandlers[topic] = callback;
+    this.activateQueuedSubscriptions();
   }
 
   send(destination, body) {
@@ -51,6 +67,8 @@ class WebSocketService {
       this.client.deactivate();
       this.connected = false;
       this.subscriptions = {};
+      this.subscriptionHandlers = {};
+      this.client = null;
     }
   }
 }
